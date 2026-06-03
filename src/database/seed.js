@@ -19,7 +19,7 @@ function createSeedData() {
       },
       {
         id: "u2",
-        student_no: "2314008",
+        student_no: "2313983",
         name: "刘砚桐",
         nickname: "YanTong",
         role: "student",
@@ -32,7 +32,7 @@ function createSeedData() {
       },
       {
         id: "u3",
-        student_no: "2314009",
+        student_no: "2313828",
         name: "苏雨辰",
         nickname: "Yuchen",
         role: "student",
@@ -45,7 +45,7 @@ function createSeedData() {
       },
       {
         id: "u4",
-        student_no: "2314010",
+        student_no: "2312194",
         name: "朱乐晨",
         nickname: "Lechen",
         role: "student",
@@ -58,7 +58,7 @@ function createSeedData() {
       },
       {
         id: "admin1",
-        student_no: "admin001",
+        student_no: "2311987",
         name: "史傅冠华",
         nickname: "系统管理员",
         role: "admin",

@@ -58,7 +58,7 @@ test("verified student can publish and another student can apply then host appro
   const ctx = await createTestServer();
   try {
     const hostToken = await login(ctx.baseUrl, "2314007");
-    const applicantToken = await login(ctx.baseUrl, "2314008");
+    const applicantToken = await login(ctx.baseUrl, "2313983");
 
     const start = new Date(Date.now() + 5 * 24 * 3600 * 1000);
     const end = new Date(start.getTime() + 3 * 3600 * 1000);
@@ -101,7 +101,7 @@ test("verified student can publish and another student can apply then host appro
 test("pending auth user cannot apply", async () => {
   const ctx = await createTestServer();
   try {
-    const pendingToken = await login(ctx.baseUrl, "2314009");
+    const pendingToken = await login(ctx.baseUrl, "2313828");
     const apply = await request(ctx.baseUrl, "POST", "/api/sessions/s1/applications", { message: "想参加" }, pendingToken);
     assert.equal(apply.status, 403);
     assert.equal(apply.payload.error.code, "FORBIDDEN");
@@ -146,7 +146,7 @@ test("venue admin can approve reservation and conflict is prevented", async () =
         end_time: "2026-06-07T21:00:00.000Z",
         reason: "冲突预约",
       },
-      await login(ctx.baseUrl, "2314008"),
+      await login(ctx.baseUrl, "2313983"),
     );
     assert.equal(second.status, 409);
     assert.equal(second.payload.error.code, "CONFLICT");
@@ -159,8 +159,8 @@ test("admin handles complaint and credit score changes", async () => {
   const ctx = await createTestServer();
   try {
     const hostToken = await login(ctx.baseUrl, "2314007");
-    const studentToken = await login(ctx.baseUrl, "2314008");
-    const adminToken = await login(ctx.baseUrl, "admin001");
+    const studentToken = await login(ctx.baseUrl, "2313983");
+    const adminToken = await login(ctx.baseUrl, "2311987");
 
     const start = new Date(Date.now() + 6 * 24 * 3600 * 1000);
     const end = new Date(start.getTime() + 2 * 3600 * 1000);

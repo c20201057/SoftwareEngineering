@@ -488,13 +488,13 @@ def build_pdf():
     story.append(Spacer(1, 12 * mm))
     cover = [
         ["团队序号", "第1组"],
-        ["团队成员", "李佳璞（2314007）；刘砚桐（学号待补充）；苏雨辰（学号待补充）；朱乐晨（学号待补充）；史傅冠华（学号待补充）"],
+        ["团队成员", "刘砚桐（2313983）；李佳璞（2314007）；苏雨辰（2313828）；史傅冠华（2311987）；朱乐晨（2312194）"],
         ["设计依据", "《校缘聚（CampusGather）桌游/剧本杀组局平台 需求分析文档》与本次软件设计报告作业要求"],
         ["交付说明", "本文档给出可实现的软件架构、模块、UML、数据库、接口、安全与测试方案；报告中的图均由本地 Graphviz 生成，源文件保存在 report_assets 目录。"],
     ]
     story.append(table(cover, styles, widths=[3.2 * cm, 12.2 * cm], repeat=False))
     story.append(Spacer(1, 20 * mm))
-    story.append(p("待补充项提示：除李佳璞学号外，其余成员学号未在给定材料中出现，首页已留“学号待补充”。提交前请补齐；若课程要求提交 StarUML/draw.io 源文件，可依据 report_assets 中的 DOT 图源进行重绘或导出。", styles, "small"))
+    story.append(p("交付提示：UML、E-R 与架构图由本地 Graphviz 生成，源文件与图片保存在 report_assets 目录。若课程要求提交 StarUML/draw.io 源文件，可依据 DOT 图源进行重绘或导出。", styles, "small"))
     story.append(PageBreak())
 
     story.append(p("目录", styles, "h1"))
@@ -748,7 +748,7 @@ def build_pdf():
             "本次课程实现以完整业务闭环为目标，不接入真实微信 AppID、学校统一身份认证和线上推送密钥；这些环境参数需要学校或课程平台确认后替换。",
             "原型使用 JSON 文件持久化，便于课堂演示；报告已给出 MySQL 表结构，后续可将 Repository 实现替换为 MySQL。",
             "UML 图已由本地 Graphviz 生成并嵌入 PDF；若老师要求专业 UML 工具源文件，可按 DOT 源图在 StarUML/draw.io 中重绘。",
-            "首页中刘砚桐、苏雨辰、朱乐晨、史傅冠华的学号需要提交前补齐。",
+            "团队成员信息已按真实姓名与学号写入首页、README、接口文档和演示数据。",
         ],
     )
     story.append(p("6.3 测试与交付计划", styles, "h2"))
