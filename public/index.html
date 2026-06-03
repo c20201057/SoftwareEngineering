@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>校缘聚 CampusGather</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%232563eb'/%3E%3Ctext x='32' y='41' text-anchor='middle' font-size='28' fill='white' font-family='Arial'%3ECG%3C/text%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <h1>校缘聚 CampusGather</h1>
+        <p>校园桌游/剧本杀组局平台原型</p>
+      </div>
+      <div class="login-panel">
+        <label for="account">演示账号</label>
+        <select id="account">
+          <option value="2314007">李佳璞 / 学生 / 已认证</option>
+          <option value="2314008">刘砚桐 / 学生 / 已认证</option>
+          <option value="2314009">苏雨辰 / 学生 / 待认证</option>
+          <option value="admin001">系统管理员</option>
+          <option value="venue001">场地管理员</option>
+        </select>
+        <button id="loginBtn">登录</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <aside class="sidebar">
+        <div class="profile" id="profile">未登录</div>
+        <nav>
+          <button class="nav active" data-view="sessions">组局大厅</button>
+          <button class="nav" data-view="create">发布组局</button>
+          <button class="nav" data-view="mine">我的组局/通知</button>
+          <button class="nav" data-view="venues">场地管理</button>
+          <button class="nav" data-view="complaints">投诉与信用</button>
+          <button class="nav" data-view="admin">管理员后台</button>
+        </nav>
+      </aside>
+
+      <section class="content">
+        <section class="view active" id="view-sessions">
+          <div class="section-head">
+            <h2>组局大厅</h2>
+            <div class="filters">
+              <select id="typeFilter">
+                <option value="">全部类型</option>
+                <option value="桌游">桌游</option>
+                <option value="剧本杀">剧本杀</option>
+              </select>
+              <input id="keywordFilter" placeholder="搜索标题、地点或游戏" />
+              <button id="refreshSessions">刷新</button>
+            </div>
+          </div>
+          <div id="sessionList" class="grid"></div>
+          <div id="sessionDetail" class="panel"></div>
+        </section>
+
+        <section class="view" id="view-create">
+          <div class="section-head">
+            <h2>发布组局</h2>
+          </div>
+          <form id="createSessionForm" class="form-grid">
+            <label>游戏/剧本<select name="game_id" id="gameSelect"></select></label>
+            <label>标题<input name="title" required value="周末剧本杀招募" /></label>
+            <label>开始时间<input name="start_time" type="datetime-local" required /></label>
+            <label>结束时间<input name="end_time" type="datetime-local" required /></label>
+            <label>地点<input name="location" required value="学生活动中心三楼" /></label>
+            <label>人数上限<input name="max_members" type="number" min="2" value="6" /></label>
+            <label>最低信用分<input name="min_credit_required" type="number" value="80" /></label>
+            <label>加入方式<select name="join_mode"><option value="manual">发起人审核</option><option value="direct">直接加入</option></select></label>
+            <label class="wide">说明<textarea name="description">准时集合，结束后互评。</textarea></label>
+            <button class="wide" type="submit">发布</button>
+          </form>
+        </section>
+
+        <section class="view" id="view-mine">
+          <div class="section-head">
+            <h2>我的组局与通知</h2>
+            <button id="refreshMine">刷新</button>
+          </div>
+          <div class="split">
+            <div>
+              <h3>我的组局</h3>
+              <div id="mineList" class="stack"></div>
+            </div>
+            <div>
+              <h3>通知</h3>
+              <div id="notificationList" class="stack"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" id="view-venues">
+          <div class="section-head">
+            <h2>场地管理</h2>
+            <button id="refreshVenues">刷新</button>
+          </div>
+          <div class="split">
+            <div>
+              <h3>可预约场地</h3>
+              <div id="venueList" class="stack"></div>
+            </div>
+            <div>
+              <h3>场地预约</h3>
+              <div id="reservationList" class="stack"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" id="view-complaints">
+          <div class="section-head">
+            <h2>投诉与信用</h2>
+            <button id="refreshComplaints">刷新</button>
+          </div>
+          <div class="split">
+            <div>
+              <h3>信用记录</h3>
+              <div id="creditPanel" class="stack"></div>
+            </div>
+            <div>
+              <h3>投诉列表</h3>
+              <div id="complaintList" class="stack"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" id="view-admin">
+          <div class="section-head">
+            <h2>管理员后台</h2>
+            <button id="refreshAdmin">刷新</button>
+          </div>
+          <div class="split">
+            <div>
+              <h3>平台统计</h3>
+              <pre id="statsPanel" class="json"></pre>
+            </div>
+            <div>
+              <h3>操作日志</h3>
+              <div id="logList" class="stack"></div>
+            </div>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <div class="toast" id="toast"></div>
+    <script src="/app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,18 @@
+{
+  "name": "campus-gather",
+  "version": "1.0.0",
+  "description": "校缘聚（CampusGather）校园桌游/剧本杀组局平台课程原型",
+  "main": "src/server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test"
+  },
+  "keywords": [
+    "software-engineering",
+    "campus",
+    "group-session"
+  ],
+  "author": "第1组",
+  "license": "MIT"
+}

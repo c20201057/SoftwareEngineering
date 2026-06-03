@@ -1,0 +1,33 @@
+
+graph G {
+  graph [fontname="Microsoft YaHei", fontsize=16, bgcolor="white", pad=0.25, layout=dot, rankdir=LR, splines=ortho, nodesep=0.55, ranksep=0.8];
+  node [fontname="Microsoft YaHei", fontsize=13, shape=box, style="rounded,filled", fillcolor="#FFF7ED", color="#D97706"];
+  edge [fontname="Microsoft YaHei", fontsize=12, color="#6B7280"];
+  User [label="users\n用户/角色/信用"];
+  GameLib [label="game_libs\n桌游/剧本库"];
+  GameSession [label="game_sessions\n组局活动"];
+  SessionApplication [label="session_applications\n报名申请"];
+  SessionMember [label="session_members\n成员名单"];
+  Venue [label="venues\n校园场地"];
+  VenueReservation [label="venue_reservations\n场地预约"];
+  Review [label="reviews\n活动互评"];
+  CreditRecord [label="credit_records\n信用流水"];
+  Complaint [label="complaints\n投诉记录"];
+  Notification [label="notifications\n系统通知"];
+  AdminLog [label="admin_logs\n操作日志"];
+  User -- GameSession [label="1:N host_id"];
+  GameLib -- GameSession [label="1:N game_id"];
+  GameSession -- SessionApplication [label="1:N"];
+  User -- SessionApplication [label="1:N applicant"];
+  GameSession -- SessionMember [label="1:N"];
+  User -- SessionMember [label="1:N"];
+  Venue -- VenueReservation [label="1:N"];
+  GameSession -- VenueReservation [label="1:0..1"];
+  GameSession -- Review [label="1:N"];
+  User -- Review [label="1:N reviewer/target"];
+  GameSession -- Complaint [label="1:N"];
+  User -- Complaint [label="1:N reporter/target"];
+  User -- CreditRecord [label="1:N"];
+  User -- Notification [label="1:N"];
+  User -- AdminLog [label="1:N operator"];
+}

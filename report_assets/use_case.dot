@@ -1,0 +1,42 @@
+
+digraph G {
+  graph [fontname="Microsoft YaHei", fontsize=16, bgcolor="white", pad=0.25, rankdir=LR, splines=true, nodesep=0.5, ranksep=0.75];
+  node [fontname="Microsoft YaHei", fontsize=13];
+  edge [fontname="Microsoft YaHei", fontsize=12, color="#475569", arrowsize=0.8, arrowhead=none];
+  student [shape=box, style="rounded,filled", fillcolor="#E0F2FE", label="普通学生"];
+  host [shape=box, style="rounded,filled", fillcolor="#E0F2FE", label="发起人\n（普通学生角色）"];
+  admin [shape=box, style="rounded,filled", fillcolor="#FCE7F3", label="系统管理员"];
+  venue_admin [shape=box, style="rounded,filled", fillcolor="#FEF3C7", label="场地/社团管理员"];
+  sso [shape=box, style="rounded,filled", fillcolor="#E5E7EB", label="学校统一身份认证"];
+
+  browse [shape=ellipse, label="浏览/筛选组局"];
+  join [shape=ellipse, label="申请加入/退出组局"];
+  profile [shape=ellipse, label="维护资料/查看信用"];
+  review [shape=ellipse, label="互评与投诉"];
+  publish [shape=ellipse, label="发布/编辑组局"];
+  approve_member [shape=ellipse, label="审核报名成员"];
+  auth_review [shape=ellipse, label="实名认证审核"];
+  game_lib [shape=ellipse, label="维护剧本/桌游库"];
+  complaint [shape=ellipse, label="处理投诉与信用"];
+  stats [shape=ellipse, label="查看日志与统计"];
+  venue_request [shape=ellipse, label="提交场地申请"];
+  venue_review [shape=ellipse, label="审核场地申请"];
+  venue_maintain [shape=ellipse, label="维护场地/开放时段"];
+  venue_notice [shape=ellipse, label="发布场地通知"];
+
+  student -> browse;
+  student -> join;
+  student -> profile;
+  student -> review;
+  host -> publish;
+  host -> approve_member;
+  host -> venue_request;
+  admin -> auth_review;
+  admin -> game_lib;
+  admin -> complaint;
+  admin -> stats;
+  venue_admin -> venue_review;
+  venue_admin -> venue_maintain;
+  venue_admin -> venue_notice;
+  sso -> auth_review [label="核验结果"];
+}

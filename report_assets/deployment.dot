@@ -1,0 +1,19 @@
+
+digraph G {
+  graph [fontname="Microsoft YaHei", fontsize=16, bgcolor="white", pad=0.25, rankdir=LR, splines=ortho, nodesep=0.55, ranksep=0.8];
+  node [fontname="Microsoft YaHei", fontsize=14, shape=box, style="rounded,filled", color="#6B7280", fillcolor="#F8FAFC"];
+  edge [fontname="Microsoft YaHei", fontsize=12, color="#475569", arrowsize=0.8];
+  phone [label="移动端\n微信客户端/小程序"];
+  browser [label="管理端浏览器"];
+  nginx [label="Nginx/HTTPS\n静态资源与反向代理"];
+  node [label="Node.js 应用实例\nREST API + 静态前端"];
+  db [label="MySQL 主库\n事务/索引/备份"];
+  log [label="日志与监控\n访问日志/错误告警"];
+  external [label="学校统一身份认证\n通知推送服务"];
+  phone -> nginx;
+  browser -> nginx;
+  nginx -> node;
+  node -> db;
+  node -> log;
+  node -> external;
+}

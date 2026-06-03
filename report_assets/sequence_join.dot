@@ -1,0 +1,19 @@
+
+digraph G {
+  graph [fontname="Microsoft YaHei", fontsize=16, bgcolor="white", pad=0.25, rankdir=TB, splines=ortho, nodesep=0.6, ranksep=0.45];
+  node [fontname="Microsoft YaHei", fontsize=12, shape=box, style="rounded,filled", fillcolor="#F8FAFC"];
+  edge [fontname="Microsoft YaHei", fontsize=12, color="#475569", arrowsize=0.8];
+  s1 [label="1. 学生在详情页点击申请加入"];
+  s2 [label="2. API 鉴权并读取用户认证/信用状态"];
+  s3 [label="3. 组局服务校验状态、名额、时间冲突、最低信用分"];
+  s4 [label="4A. 直接加入：创建成员并更新人数"];
+  s5 [label="4B. 审核制：创建待审核申请"];
+  s6 [label="5. 通知服务向申请人/发起人发送结果"];
+  s7 [label="6. 日志服务记录报名操作"];
+  s1 -> s2 -> s3;
+  s3 -> s4 [label="direct"];
+  s3 -> s5 [label="manual"];
+  s4 -> s6;
+  s5 -> s6;
+  s6 -> s7;
+}

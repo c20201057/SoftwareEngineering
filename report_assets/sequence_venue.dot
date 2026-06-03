@@ -1,0 +1,15 @@
+
+digraph G {
+  graph [fontname="Microsoft YaHei", fontsize=16, bgcolor="white", pad=0.25, rankdir=TB, splines=ortho, nodesep=0.6, ranksep=0.45];
+  node [fontname="Microsoft YaHei", fontsize=12, shape=box, style="rounded,filled", fillcolor="#F8FAFC"];
+  edge [fontname="Microsoft YaHei", fontsize=12, color="#475569", arrowsize=0.8];
+  v1 [label="1. 发起人提交场地预约申请"];
+  v2 [label="2. 场地服务校验场地开放状态、容量、时间范围"];
+  v3 [label="3. 系统检测同场地已通过预约的时段冲突"];
+  v4 [label="4. 生成待审核预约并通知场地管理员"];
+  v5 [label="5. 场地管理员查看申请并选择通过/驳回"];
+  v6 [label="6. 更新预约状态与组局场地状态"];
+  v7 [label="7. 通知发起人及已报名成员"];
+  v8 [label="8. 写入场地管理员操作日志"];
+  v1 -> v2 -> v3 -> v4 -> v5 -> v6 -> v7 -> v8;
+}

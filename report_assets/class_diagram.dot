@@ -1,0 +1,33 @@
+
+digraph G {
+  graph [fontname="Microsoft YaHei", fontsize=16, bgcolor="white", pad=0.25, rankdir=LR, splines=ortho, nodesep=0.55, ranksep=0.85];
+  node [fontname="Microsoft YaHei", fontsize=12, shape=record, style="rounded,filled", fillcolor="#F8FAFC", color="#64748B"];
+  edge [fontname="Microsoft YaHei", fontsize=12, color="#475569", arrowsize=0.8, arrowhead=vee];
+  User [label="{User 用户|userId: ID\lstudentNo: String\lname/nickname: String\lrole: Role\lauthStatus: AuthStatus\lcreditScore: Number\lstatus: AccountStatus\l|canPublish()\lmaskProfile()\l}"];
+  GameLib [label="{GameLib 游戏库|gameId: ID\lname/type: String\lminPlayers/maxPlayers: Number\ldifficulty: String\lstatus: String\l}"];
+  GameSession [label="{GameSession 组局|sessionId: ID\lhostId: ID\lgameId: ID\ltitle/time/location\lmaxMembers/currentMembers\ljoinMode/status\lminCreditRequired\l|isRecruiting()\lhasCapacity()\l}"];
+  SessionApplication [label="{SessionApplication 申请|applicationId: ID\lsessionId/applicantId\lmessage/status\lapplyTime/reviewTime\l}"];
+  SessionMember [label="{SessionMember 成员|memberId: ID\lsessionId/userId\lmemberRole\ljoinTime\lcheckinStatus\l}"];
+  Venue [label="{Venue 场地|venueId: ID\lname/location\lcapacity/status\lmanagerId\lopenRules\l}"];
+  VenueReservation [label="{VenueReservation 预约|reservationId: ID\lvenueId/sessionId\lapplicantId/reviewerId\ltimeRange/status\lreviewReason\l}"];
+  Review [label="{Review 评价|reviewId: ID\lsessionId\lreviewerId/targetUserId\lscore/content\lcreatedAt\l}"];
+  Complaint [label="{Complaint 投诉|complaintId: ID\lreporterId/targetUserId\lsessionId\lreason/evidence\lstatus/result\l}"];
+  CreditRecord [label="{CreditRecord 信用记录|recordId: ID\luserId/sessionId\lchangeValue\lreason\lcreatedAt\l}"];
+  Notification [label="{Notification 通知|notificationId: ID\luserId\ltype/title/content\lrelatedType/relatedId\lreadAt\l}"];
+  AdminLog [label="{AdminLog 操作日志|logId: ID\loperatorId\laction/object\lresult/remark\lcreatedAt\l}"];
+
+  User -> GameSession [label="1 发起 N"];
+  GameLib -> GameSession [label="1 对应 N"];
+  GameSession -> SessionApplication [label="1 包含 N"];
+  GameSession -> SessionMember [label="1 包含 N"];
+  User -> SessionApplication [label="1 提交 N"];
+  User -> SessionMember [label="1 参与 N"];
+  Venue -> VenueReservation [label="1 被预约 N"];
+  GameSession -> VenueReservation [label="1 申请 0..1"];
+  GameSession -> Review [label="1 产生 N"];
+  GameSession -> Complaint [label="1 关联 N"];
+  User -> Review [label="评价/被评价"];
+  User -> CreditRecord [label="1 拥有 N"];
+  User -> Notification [label="1 接收 N"];
+  User -> AdminLog [label="1 操作 N"];
+}

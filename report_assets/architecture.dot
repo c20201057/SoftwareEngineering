@@ -1,0 +1,45 @@
+
+digraph G {
+  graph [fontname="Microsoft YaHei", fontsize=16, bgcolor="white", pad=0.25, rankdir=LR, splines=ortho, nodesep=0.55, ranksep=0.8];
+  node [fontname="Microsoft YaHei", fontsize=14, shape=box, style="rounded,filled", color="#6B7280", fillcolor="#F8FAFC"];
+  edge [fontname="Microsoft YaHei", fontsize=12, color="#475569", arrowsize=0.8];
+  subgraph cluster_client {
+    label="客户端层";
+    color="#BFD7EA";
+    student [label="微信小程序\n学生端"];
+    admin_web [label="Web 后台\n系统管理员/场地管理员"];
+  }
+  subgraph cluster_api {
+    label="应用服务层（Node.js REST）";
+    color="#C7E9D4";
+    gateway [label="路由与鉴权\nToken/角色校验"];
+    session [label="组局服务\n发布/报名/成员"];
+    venue [label="场地服务\n预约/审核/占用"];
+    credit [label="信用与投诉服务\n评价/扣分/仲裁"];
+    notice [label="通知与日志服务\n消息/审计/统计"];
+    lib [label="内容库服务\n桌游/剧本库"];
+  }
+  subgraph cluster_data {
+    label="数据与外部依赖层";
+    color="#F8D4B4";
+    repo [label="Repository 抽象\nJSON 开发存储 / MySQL 部署"];
+    mysql [label="MySQL 数据库\n事务/索引/外键"];
+    auth [label="学校统一身份认证\n预留接口"];
+    push [label="通知推送服务\n微信订阅/站内信"];
+  }
+  student -> gateway;
+  admin_web -> gateway;
+  gateway -> session;
+  gateway -> venue;
+  gateway -> credit;
+  gateway -> notice;
+  gateway -> lib;
+  session -> repo;
+  venue -> repo;
+  credit -> repo;
+  notice -> repo;
+  lib -> repo;
+  repo -> mysql [label="生产环境"];
+  repo -> auth [label="认证核验"];
+  notice -> push;
+}
