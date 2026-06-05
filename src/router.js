@@ -58,6 +58,11 @@ async function handleApi(app, req, res, url) {
     return;
   }
 
+  if (req.method === "POST" && route === "/users/me/auth") {
+    ok(res, services.userService.submitAuth(user, body));
+    return;
+  }
+
   if (req.method === "PUT" && route === "/users/me") {
     ok(res, services.userService.updateProfile(user, body));
     return;

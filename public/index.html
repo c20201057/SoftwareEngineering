@@ -33,10 +33,11 @@
         <nav>
           <button class="nav active" data-view="sessions">组局大厅</button>
           <button class="nav" data-view="create">发布组局</button>
+          <button class="nav" data-view="auth" id="authNav">实名认证</button>
           <button class="nav" data-view="mine">我的组局/通知</button>
           <button class="nav" data-view="venues">场地管理</button>
           <button class="nav" data-view="complaints">投诉与信用</button>
-          <button class="nav" data-view="admin">管理员后台</button>
+          <button class="nav" data-view="admin" id="adminNav">管理员后台</button>
         </nav>
       </aside>
 
@@ -76,20 +77,33 @@
           </form>
         </section>
 
+        <section class="view" id="view-auth">
+          <div class="section-head">
+            <h2>实名认证</h2>
+            <button id="refreshAuth">刷新</button>
+          </div>
+          <div id="authPanel" class="stack"></div>
+          <form id="authForm" class="form-grid section-block">
+            <label>真实姓名<input name="real_name" required /></label>
+            <label>学号<input name="student_no" required /></label>
+            <label>联系方式<input name="contact" placeholder="手机号 / 邮箱" /></label>
+            <label class="wide">补充说明<textarea name="note" placeholder="可填写学院、班级或说明信息"></textarea></label>
+            <button class="wide" type="submit">提交实名认证申请</button>
+          </form>
+        </section>
+
         <section class="view" id="view-mine">
           <div class="section-head">
             <h2>我的组局与通知</h2>
             <button id="refreshMine">刷新</button>
           </div>
-          <div class="split">
-            <div>
-              <h3>我的组局</h3>
-              <div id="mineList" class="stack"></div>
-            </div>
-            <div>
-              <h3>通知</h3>
-              <div id="notificationList" class="stack"></div>
-            </div>
+          <div>
+            <h3>我的组局</h3>
+            <div id="mineList" class="stack"></div>
+          </div>
+          <div class="section-block">
+            <h3>通知</h3>
+            <div id="notificationList" class="stack"></div>
           </div>
         </section>
 
@@ -134,13 +148,17 @@
           </div>
           <div class="split">
             <div>
+              <h3>实名认证审核</h3>
+              <div id="authReviewList" class="stack"></div>
+            </div>
+            <div>
               <h3>平台统计</h3>
               <pre id="statsPanel" class="json"></pre>
             </div>
-            <div>
-              <h3>操作日志</h3>
-              <div id="logList" class="stack"></div>
-            </div>
+          </div>
+          <div class="section-block">
+            <h3>操作日志</h3>
+            <div id="logList" class="stack"></div>
           </div>
         </section>
       </section>

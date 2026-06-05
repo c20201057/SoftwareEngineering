@@ -1,4 +1,4 @@
-const { badRequest, forbidden, notFound, unauthorized } = require("../errors");
+const { badRequest, conflict, forbidden, notFound, unauthorized } = require("../errors");
 const { maskStudentNo, normalizeText, nowIso } = require("../utils");
 
 class UserService {
@@ -10,6 +10,7 @@ class UserService {
     if (!user) return null;
     const isSelf = viewer && viewer.id === user.id;
     const isAdmin = viewer && viewer.role === "admin";
+    const canViewAuth = isSelf || isAdmin;
     return {
       id: user.id,
       name: user.name,
@@ -19,8 +20,19 @@ class UserService {
       credit_score: user.credit_score,
       status: user.status,
       tags: user.tags || [],
-      student_no: isSelf || isAdmin ? user.student_no : maskStudentNo(user.student_no),
-      contact: isSelf || isAdmin ? user.contact : undefined,
+      student_no: canViewAuth ? user.student_no : maskStudentNo(user.student_no),
+      contact: canViewAuth ? user.contact : undefined,
+      auth_submission: canViewAuth
+        ? {
+            real_name: user.auth_submission_name || "",
+            student_no: user.auth_submission_student_no || "",
+            contact: user.auth_submission_contact || "",
+            note: user.auth_submission_note || "",
+          }
+        : undefined,
+      auth_submitted_at: canViewAuth ? user.auth_submitted_at || null : undefined,
+      auth_review_reason: canViewAuth ? user.auth_review_reason || "" : undefined,
+      auth_reviewed_at: canViewAuth ? user.auth_reviewed_at || null : undefined,
       created_at: user.created_at,
     };
   }
@@ -71,6 +83,34 @@ class UserService {
     return this.publicUser(updated, updated);
   }
 
+  submitAuth(user, payload) {
+    this.requireRole(user, "student");
+    if (user.auth_status === "verified") throw conflict("当前账号已完成实名认证，无需重复提交");
+    const realName = normalizeText(payload.real_name);
+    const studentNo = normalizeText(payload.student_no);
+    const contact = normalizeText(payload.contact ?? user.contact);
+    const note = normalizeText(payload.note);
+    if (!realName || realName.length < 2 || realName.length > 20) {
+      throw badRequest("真实姓名长度应为 2-20 个字符");
+    }
+    if (!studentNo || studentNo.length < 4 || studentNo.length > 32) {
+      throw badRequest("学号格式不合法");
+    }
+    const isPendingUpdate = user.auth_status === "pending" && user.auth_submitted_at;
+    const updated = this.store.update("users", user.id, {
+      auth_status: "pending",
+      auth_submission_name: realName,
+      auth_submission_student_no: studentNo,
+      auth_submission_contact: contact,
+      auth_submission_note: note,
+      auth_submitted_at: isPendingUpdate ? user.auth_submitted_at : nowIso(),
+      auth_review_reason: isPendingUpdate ? user.auth_review_reason || "" : "",
+      auth_reviewed_at: isPendingUpdate ? user.auth_reviewed_at || null : null,
+      updated_at: nowIso(),
+    });
+    return this.publicUser(updated, updated);
+  }
+
   reviewAuth(viewer, userId, payload) {
     this.requireRole(viewer, "admin");
     const target = this.store.get("users", userId);
@@ -81,6 +121,7 @@ class UserService {
     const updated = this.store.update("users", target.id, {
       auth_status,
       auth_review_reason: normalizeText(payload.reason),
+      auth_reviewed_at: nowIso(),
       updated_at: nowIso(),
     });
     return this.publicUser(updated, viewer);

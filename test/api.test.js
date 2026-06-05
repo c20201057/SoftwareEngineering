@@ -110,6 +110,63 @@ test("pending auth user cannot apply", async () => {
   }
 });
 
+test("student can submit auth request and admin approval unlocks join flow", async () => {
+  const ctx = await createTestServer();
+  try {
+    const studentToken = await login(ctx.baseUrl, "2313828");
+    const adminToken = await login(ctx.baseUrl, "2311987");
+
+    const submit = await request(
+      ctx.baseUrl,
+      "POST",
+      "/api/users/me/auth",
+      {
+        real_name: "苏雨辰",
+        student_no: "2313828",
+        contact: "suyc@example.edu",
+        note: "提交学生证与学院信息",
+      },
+      studentToken,
+    );
+    assert.equal(submit.status, 200);
+    assert.equal(submit.payload.data.auth_status, "pending");
+    assert.equal(submit.payload.data.auth_submission.real_name, "苏雨辰");
+    const firstSubmittedAt = submit.payload.data.auth_submitted_at;
+
+    const revise = await request(
+      ctx.baseUrl,
+      "POST",
+      "/api/users/me/auth",
+      {
+        real_name: "苏雨辰",
+        student_no: "2313828",
+        contact: "suyc@example.edu",
+        note: "补充学院与班级信息",
+      },
+      studentToken,
+    );
+    assert.equal(revise.status, 200);
+    assert.equal(revise.payload.data.auth_status, "pending");
+    assert.equal(revise.payload.data.auth_submission.note, "补充学院与班级信息");
+    assert.equal(revise.payload.data.auth_submitted_at, firstSubmittedAt);
+
+    const review = await request(
+      ctx.baseUrl,
+      "PATCH",
+      "/api/users/u3/auth",
+      { action: "approve", reason: "信息核验通过" },
+      adminToken,
+    );
+    assert.equal(review.status, 200);
+    assert.equal(review.payload.data.auth_status, "verified");
+
+    const apply = await request(ctx.baseUrl, "POST", "/api/sessions/s1/applications", { message: "认证后报名" }, studentToken);
+    assert.equal(apply.status, 201);
+  } finally {
+    await ctx.close();
+  }
+});
+
 test("venue admin can approve reservation and conflict is prevented", async () => {
   const ctx = await createTestServer();
   try {

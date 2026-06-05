@@ -32,6 +32,7 @@
 | GET | `/api/health` | 公开 | 健康检查 |
 | POST | `/api/auth/login` | 公开 | 登录 |
 | GET/PUT | `/api/users/me` | 登录 | 当前用户资料 |
+| POST | `/api/users/me/auth` | 学生 | 提交或重新提交实名认证申请 |
 | GET | `/api/users/me/credit` | 登录 | 个人信用记录 |
 | GET/POST/PATCH | `/api/games` | 公开/管理员 | 游戏库查询与维护 |
 | GET/POST | `/api/sessions` | 公开/认证学生 | 查询和发布组局 |
