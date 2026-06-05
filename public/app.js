@@ -4,6 +4,7 @@ const state = {
   sessions: [],
   games: [],
   venues: [],
+  notifications: [],
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -15,12 +16,13 @@ async function api(path, options = {}) {
     ...(options.headers || {}),
   };
   if (state.token) headers.authorization = `Bearer ${state.token}`;
-  const res = await fetch(path, {
+
+  const response = await fetch(path, {
     ...options,
     headers,
     body: options.body ? JSON.stringify(options.body) : undefined,
   });
-  const payload = await res.json();
+  const payload = await response.json();
   if (!payload.success) {
     throw new Error(payload.error?.message || "请求失败");
   }
@@ -29,21 +31,107 @@ async function api(path, options = {}) {
 
 function toast(message) {
   const box = $("#toast");
+  if (!box) return;
   box.textContent = message;
   box.classList.add("show");
   setTimeout(() => box.classList.remove("show"), 2400);
 }
 
 function fmtTime(value) {
+  if (!value) return "未设置";
   return new Date(value).toLocaleString("zh-CN", { hour12: false });
+}
+
+function toLocalInputValue(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
 }
 
 function setDefaultTimes() {
   const start = new Date(Date.now() + 3 * 24 * 3600 * 1000);
   start.setHours(19, 0, 0, 0);
   const end = new Date(start.getTime() + 3 * 3600 * 1000);
-  $("[name=start_time]").value = start.toISOString().slice(0, 16);
-  $("[name=end_time]").value = end.toISOString().slice(0, 16);
+  const createForm = $("#createSessionForm");
+  if (!createForm) return;
+  createForm.start_time.value = toLocalInputValue(start.toISOString());
+  createForm.end_time.value = toLocalInputValue(end.toISOString());
+}
+
+function isLoggedIn() {
+  return Boolean(state.user);
+}
+
+function isStudent() {
+  return state.user?.role === "student";
+}
+
+function isAdmin() {
+  return state.user?.role === "admin";
+}
+
+function isVenueAdmin() {
+  return state.user?.role === "venue_admin";
+}
+
+function isVerifiedStudent() {
+  return isStudent() && state.user?.auth_status === "verified" && state.user?.status === "active";
+}
+
+function unreadNotificationCount() {
+  return state.notifications.filter((item) => !item.read_at).length;
+}
+
+function updateMineBadge() {
+  const badge = $("#mineBadge");
+  if (!badge) return;
+  const unread = unreadNotificationCount();
+  badge.textContent = unread > 99 ? "99+" : String(unread);
+  badge.style.display = unread > 0 ? "inline-flex" : "none";
+}
+
+function formatVenueOptionLabel(venue) {
+  return `${venue.name} · ${venue.location} · 容量 ${venue.capacity}`;
+}
+
+function formatSessionLocation(session) {
+  if (session.venue?.name) return `${session.venue.name} · ${session.venue.location}`;
+  if (session.venue_name) return `${session.venue_name} · ${session.venue_location}`;
+  return session.location || "待定";
+}
+
+function renderVenueSelect(target, selectedValue = "", placeholder = "请选择场地") {
+  const select = typeof target === "string" ? $(target) : target;
+  if (!select) return;
+  const options = [`<option value="">${placeholder}</option>`]
+    .concat(state.venues.map((venue) => (
+      `<option value="${venue.id}">${formatVenueOptionLabel(venue)}</option>`
+    )));
+  select.innerHTML = options.join("");
+  select.value = selectedValue || "";
+}
+
+function renderVenueSelects() {
+  renderVenueSelect("#venueSelect", $("#venueSelect")?.value || "", "请选择场地");
+  renderVenueSelect("#editVenueSelect", $("#editVenueSelect")?.value || "", "请选择场地（留空则保持原地点）");
+}
+
+function hideEditSessionPanel() {
+  const block = $("#editSessionBlock");
+  const form = $("#editSessionForm");
+  if (form) form.reset();
+  renderVenueSelect("#editVenueSelect", "", "请选择场地（留空则保持原地点）");
+  if (block) block.style.display = "none";
+}
+
+function resetVenueFormState() {
+  const form = $("#venueForm");
+  if (!form) return;
+  form.reset();
+  form.venue_id.value = "";
+  form.status.value = "active";
+  $("#venueSubmitBtn").textContent = "新增场地";
 }
 
 async function login() {
@@ -54,6 +142,7 @@ async function login() {
   });
   state.token = data.token;
   state.user = data.user;
+  state.notifications = [];
   localStorage.setItem("cg_token", state.token);
   renderProfile();
   renderNavigation();
@@ -69,19 +158,22 @@ async function loadMe() {
     renderNavigation();
   } catch {
     state.token = "";
-    localStorage.removeItem("cg_token");
     state.user = null;
+    state.notifications = [];
+    localStorage.removeItem("cg_token");
     renderProfile();
     renderNavigation();
   }
 }
 
 function renderProfile() {
+  const panel = $("#profile");
+  if (!panel) return;
   if (!state.user) {
-    $("#profile").textContent = "未登录";
+    panel.textContent = "未登录";
     return;
   }
-  $("#profile").innerHTML = `
+  panel.innerHTML = `
     <strong>${state.user.nickname}</strong><br>
     角色：${state.user.role}<br>
     认证：${state.user.auth_status}<br>
@@ -90,17 +182,22 @@ function renderProfile() {
 }
 
 function renderNavigation() {
+  const createNav = $("#createNav");
   const authNav = $("#authNav");
+  const mineNav = $("#mineNav");
+  const complaintsNav = $("#complaintsNav");
   const adminNav = $("#adminNav");
-  const isStudent = state.user?.role === "student";
-  const isAdmin = state.user?.role === "admin";
-  if (authNav) authNav.style.display = isStudent ? "" : "none";
-  if (adminNav) adminNav.style.display = isAdmin ? "" : "none";
+
+  if (createNav) createNav.style.display = isVerifiedStudent() ? "" : "none";
+  if (authNav) authNav.style.display = isStudent() ? "" : "none";
+  if (mineNav) mineNav.style.display = isLoggedIn() ? "" : "none";
+  if (complaintsNav) complaintsNav.style.display = isLoggedIn() ? "" : "none";
+  if (adminNav) adminNav.style.display = isAdmin() ? "" : "none";
+
+  updateMineBadge();
 
   const activeHidden = [...$$(".nav.active")].some((button) => button.style.display === "none");
-  if (activeHidden) {
-    showView("sessions");
-  }
+  if (activeHidden) showView("sessions");
 }
 
 function authStatusText(status) {
@@ -121,24 +218,26 @@ function renderAuthPanel() {
   const panel = $("#authPanel");
   const form = $("#authForm");
   if (!panel || !form) return;
-  if (!state.user || state.user.role !== "student") {
-    panel.innerHTML = "<p class='meta'>学生账号登录后查看实名认证状态</p>";
+
+  if (!isStudent()) {
+    panel.innerHTML = "<p class='meta'>学生账号登录后可查看实名认证状态。</p>";
     form.style.display = "none";
     return;
   }
 
   const submission = state.user.auth_submission || {};
   const status = state.user.auth_status || "pending";
-  const canSubmit = state.user.role === "student" && status !== "verified";
   const submittedAt = state.user.auth_submitted_at ? fmtTime(state.user.auth_submitted_at) : "尚未提交";
   const reviewedAt = state.user.auth_reviewed_at ? fmtTime(state.user.auth_reviewed_at) : "暂无";
+  const canEditSubmission = status !== "verified";
   const helperText = status === "pending"
-    ? "资料正在审核中，当前不能重复发起新申请；如需补充信息，可直接修改并保存当前资料。"
+    ? "资料正在审核中，当前不能重复发起新申请；如需补充信息，可以直接修改后保存。"
     : status === "rejected"
-      ? "申请已被驳回，请根据审核说明修改后重新提交。"
-      : canSubmit
-        ? "原型阶段采用学生提交资料、管理员人工审核的方式。"
-        : "当前账号无需再次提交认证材料。";
+      ? "申请已被驳回，请根据审核意见修改后重新提交。"
+      : status === "verified"
+        ? "当前账号已完成实名认证。"
+        : "请填写真实姓名、学号和联系方式后提交。";
+
   panel.innerHTML = `
     <div class="card">
       <div class="meta">
@@ -149,13 +248,13 @@ function renderAuthPanel() {
       <p>当前提交姓名：${submission.real_name || "未填写"}</p>
       <p>当前提交学号：${submission.student_no || "未填写"}</p>
       <p>联系方式：${submission.contact || "未填写"}</p>
-      <p>${state.user.auth_review_reason ? `审核说明：${state.user.auth_review_reason}` : "审核说明：暂无"}</p>
+      <p>审核说明：${state.user.auth_review_reason || "暂无"}</p>
       <p>${helperText}</p>
     </div>
   `;
 
-  form.style.display = canSubmit ? "grid" : "none";
-  if (!canSubmit) return;
+  form.style.display = canEditSubmission ? "grid" : "none";
+  if (!canEditSubmission) return;
   form.real_name.value = submission.real_name || state.user.name || "";
   form.student_no.value = submission.student_no || state.user.student_no || "";
   form.contact.value = submission.contact || state.user.contact || "";
@@ -167,147 +266,8 @@ function renderAuthPanel() {
       : "提交实名认证申请";
 }
 
-async function loadBootstrap() {
-  state.games = await api("/api/games");
-  renderGameSelect();
-  renderNavigation();
-  await Promise.all([loadSessions(), loadAuthView(), loadVenues(), loadMine(), loadComplaints()]);
-}
-
-function renderGameSelect() {
-  $("#gameSelect").innerHTML = state.games
-    .map((game) => `<option value="${game.id}">${game.name}（${game.type}/${game.min_players}-${game.max_players}人）</option>`)
-    .join("");
-}
-
-async function loadSessions() {
-  const type = encodeURIComponent($("#typeFilter").value);
-  const keyword = encodeURIComponent($("#keywordFilter").value);
-  state.sessions = await api(`/api/sessions?type=${type}&keyword=${keyword}`);
-  $("#sessionList").innerHTML = state.sessions.map(renderSessionCard).join("");
-}
-
-function renderSessionCard(session) {
-  return `
-    <article class="card">
-      <h3>${session.title}</h3>
-      <div class="meta">
-        <span class="badge">${session.game_name}</span>
-        <span class="badge">${session.game_type}</span>
-        <span class="badge ${session.seats_left > 0 ? "good" : "bad"}">余 ${session.seats_left} 位</span>
-        <span class="badge ${session.join_mode === "manual" ? "warn" : "good"}">${session.join_mode === "manual" ? "审核制" : "直接加入"}</span>
-      </div>
-      <p>${session.description || "暂无说明"}</p>
-      <p class="meta">${fmtTime(session.start_time)} · ${session.location} · 发起人 ${session.host_nickname}</p>
-      <div class="actions">
-        <button onclick="showSession('${session.id}')">详情</button>
-        <button class="secondary" onclick="applySession('${session.id}')">申请/加入</button>
-      </div>
-    </article>
-  `;
-}
-
-async function showSession(id) {
-  const detail = await api(`/api/sessions/${id}`);
-  const pending = detail.applications.filter((item) => item.status === "pending");
-  $("#sessionDetail").innerHTML = `
-    <h3>${detail.title}</h3>
-    <p>${detail.description || "暂无说明"}</p>
-    <div class="meta">
-      <span class="badge">${detail.game?.name || ""}</span>
-      <span class="badge">${fmtTime(detail.start_time)}</span>
-      <span class="badge">地点：${detail.location}</span>
-      <span class="badge">场地：${detail.venue_status}</span>
-      <span class="badge">信用要求：${detail.min_credit_required}</span>
-    </div>
-    <h4>成员</h4>
-    <div class="stack">${detail.members.map((m) => `<div class="card">${m.user?.nickname || m.user_id} · ${m.member_role} · ${m.checkin_status}</div>`).join("")}</div>
-    <h4>待审核申请</h4>
-    <div class="stack">${pending.map((a) => `
-      <div class="card">
-        ${a.applicant?.nickname || a.applicant_id}：${a.message || "无备注"}
-        <div class="actions">
-          <button onclick="reviewApplication('${a.id}', 'approve')">通过</button>
-          <button class="danger" onclick="reviewApplication('${a.id}', 'reject')">拒绝</button>
-        </div>
-      </div>`).join("") || "<p class='meta'>暂无待审核申请</p>"}
-    </div>
-    <div class="actions">
-      <button onclick="finishSession('${detail.id}')">标记结束</button>
-      <button class="secondary" onclick="requestVenue('${detail.id}')">申请默认场地</button>
-      <button class="secondary" onclick="createComplaint('${detail.id}')">提交示例投诉</button>
-    </div>
-  `;
-}
-
-async function applySession(id) {
-  await api(`/api/sessions/${id}/applications`, {
-    method: "POST",
-    body: { message: "我想参加这次组局，会准时到场。" },
-  });
-  toast("申请已提交或已加入");
-  await loadSessions();
-  await showSession(id);
-}
-
-async function reviewApplication(id, action) {
-  await api(`/api/applications/${id}`, {
-    method: "PATCH",
-    body: { action, reason: action === "approve" ? "信用良好，通过" : "人数安排不合适" },
-  });
-  toast("申请已处理");
-  await loadSessions();
-}
-
-async function finishSession(id) {
-  await api(`/api/sessions/${id}/finish`, { method: "POST", body: {} });
-  toast("组局已标记结束");
-  await showSession(id);
-}
-
-async function requestVenue(sessionId) {
-  const venue = state.venues[0];
-  if (!venue) return toast("暂无可用场地");
-  const detail = await api(`/api/sessions/${sessionId}`);
-  await api("/api/venue-reservations", {
-    method: "POST",
-    body: {
-      session_id: sessionId,
-      venue_id: venue.id,
-      start_time: detail.start_time,
-      end_time: detail.end_time,
-      reason: "课程原型演示申请",
-    },
-  });
-  toast("场地申请已提交");
-}
-
-async function createComplaint(sessionId) {
-  const detail = await api(`/api/sessions/${sessionId}`);
-  const target = detail.members.find((m) => m.user_id !== state.user.id);
-  if (!target) return toast("需要至少另一名成员才能投诉");
-  await api("/api/complaints", {
-    method: "POST",
-    body: {
-      session_id: sessionId,
-      target_user_id: target.user_id,
-      reason: "示例投诉：活动信息与描述不符",
-      evidence: "课堂演示数据",
-    },
-  });
-  toast("投诉已提交");
-}
-
-async function createSession(event) {
-  event.preventDefault();
-  const form = new FormData(event.currentTarget);
-  const payload = Object.fromEntries(form.entries());
-  payload.max_members = Number(payload.max_members);
-  payload.min_credit_required = Number(payload.min_credit_required);
-  await api("/api/sessions", { method: "POST", body: payload });
-  toast("组局已发布");
-  await loadSessions();
-  showView("sessions");
+async function loadAuthView() {
+  renderAuthPanel();
 }
 
 async function submitAuthRequest(event) {
@@ -324,90 +284,543 @@ async function submitAuthRequest(event) {
   renderNavigation();
   renderAuthPanel();
   if (previousStatus === "pending") {
-    toast("实名认证资料已更新，仍处于待审核状态");
+    toast("实名认证资料已更新，仍处于待审核状态。");
   } else if (previousStatus === "rejected") {
-    toast("实名认证申请已重新提交");
+    toast("实名认证申请已重新提交。");
   } else {
-    toast("实名认证申请已提交");
+    toast("实名认证申请已提交。");
   }
 }
 
-async function loadAuthView() {
-  renderAuthPanel();
+async function loadBootstrap() {
+  state.games = await api("/api/games");
+  renderGameSelect();
+  renderVenueSelects();
+  renderNavigation();
+  await Promise.all([loadSessions(), loadAuthView(), loadVenues(), loadMine(), loadComplaints()]);
+}
+
+function renderGameSelect() {
+  const select = $("#gameSelect");
+  if (!select) return;
+  select.innerHTML = state.games
+    .map((game) => `<option value="${game.id}">${game.name}（${game.type}/${game.min_players}-${game.max_players}人）</option>`)
+    .join("");
+}
+
+function canApplyToSession(session) {
+  if (!isVerifiedStudent()) return false;
+  if (state.user.id === session.host_id) return false;
+  if (session.status !== "recruiting") return false;
+  if (session.seats_left < 1) return false;
+  if (Number(state.user.credit_score || 0) < Number(session.min_credit_required || 0)) return false;
+  return true;
+}
+
+async function loadSessions() {
+  const type = encodeURIComponent($("#typeFilter").value);
+  const keyword = encodeURIComponent($("#keywordFilter").value);
+  state.sessions = await api(`/api/sessions?type=${type}&keyword=${keyword}`);
+  $("#sessionList").innerHTML = state.sessions.map(renderSessionCard).join("") || "<p class='meta'>暂无组局</p>";
+}
+
+function renderSessionCard(session) {
+  const canApply = canApplyToSession(session);
+  const locationText = formatSessionLocation(session);
+  return `
+    <article class="card">
+      <h3>${session.title}</h3>
+      <div class="meta">
+        <span class="badge">${session.game_name}</span>
+        <span class="badge">${session.game_type}</span>
+        <span class="badge ${session.seats_left > 0 ? "good" : "bad"}">剩余 ${session.seats_left} 位</span>
+        <span class="badge ${session.join_mode === "manual" ? "warn" : "good"}">${session.join_mode === "manual" ? "发起人审核" : "直接加入"}</span>
+      </div>
+      <p>${session.description || "暂无说明"}</p>
+      <p class="meta">${fmtTime(session.start_time)} · ${locationText} · 发起人：${session.host_nickname}</p>
+      <div class="actions">
+        <button onclick="showSession('${session.id}')">详情</button>
+        ${canApply ? `<button class="secondary" onclick="applySession('${session.id}')">申请/加入</button>` : ""}
+      </div>
+    </article>
+  `;
+}
+
+async function showSession(id) {
+  const detail = await api(`/api/sessions/${id}`);
+  const locationText = formatSessionLocation(detail);
+  const isMember = detail.members.some((member) => member.user_id === state.user?.id);
+  const hasPendingApplication = detail.applications.some((item) => item.applicant_id === state.user?.id && item.status === "pending");
+  const canApply = isVerifiedStudent()
+    && state.user?.id !== detail.host_id
+    && !isMember
+    && !hasPendingApplication
+    && detail.status === "recruiting"
+    && Number(state.user.credit_score || 0) >= Number(detail.min_credit_required || 0)
+    && Number(detail.current_members || 0) < Number(detail.max_members || 0);
+  const canCreateComplaint = isVerifiedStudent()
+    && isMember
+    && detail.members.some((member) => member.user_id !== state.user.id);
+
+  const actionButtons = [];
+  if (canApply) actionButtons.push(`<button class="secondary" onclick="applySession('${detail.id}')">申请/加入</button>`);
+  if (canCreateComplaint) actionButtons.push(`<button class="secondary" onclick="createComplaint('${detail.id}')">提交投诉</button>`);
+
+  const userHint = hasPendingApplication
+    ? "<p class='meta'>你已提交报名申请，正在等待发起人审核。</p>"
+    : "";
+
+  $("#sessionDetail").innerHTML = `
+    <h3>${detail.title}</h3>
+    <p>${detail.description || "暂无说明"}</p>
+    <div class="meta">
+      <span class="badge">${detail.game?.name || ""}</span>
+      <span class="badge">${fmtTime(detail.start_time)}</span>
+      <span class="badge">地点：${locationText}</span>
+      <span class="badge">场地状态：${detail.venue_status}</span>
+      <span class="badge">信用要求：${detail.min_credit_required}</span>
+    </div>
+    <h4>成员</h4>
+    <div class="stack">${detail.members.map((member) => `<div class="card">${member.user?.nickname || member.user_id} · ${member.member_role} · ${member.checkin_status}</div>`).join("")}</div>
+    ${userHint}
+    ${actionButtons.length ? `<div class="actions">${actionButtons.join("")}</div>` : ""}
+  `;
+}
+
+async function refreshSessionViews(sessionId = null) {
+  await Promise.all([loadSessions(), loadMine(), loadVenues()]);
+  if (sessionId && $("#view-sessions")?.classList.contains("active")) {
+    await showSession(sessionId).catch(() => {});
+  }
+}
+
+async function applySession(id) {
+  await api(`/api/sessions/${id}/applications`, {
+    method: "POST",
+    body: { message: "我想参加这次组局，会准时到场。" },
+  });
+  toast("申请已提交或已加入。");
+  await refreshSessionViews(id);
+}
+
+async function reviewApplication(id, action) {
+  await api(`/api/applications/${id}`, {
+    method: "PATCH",
+    body: {
+      action,
+      reason: action === "approve" ? "信用良好，审核通过" : "当前名额安排不合适",
+    },
+  });
+  toast("申请已处理。");
+  await Promise.all([loadSessions(), loadMine()]);
+}
+
+async function finishSession(id) {
+  await api(`/api/sessions/${id}/finish`, { method: "POST", body: {} });
+  toast("组局已标记结束。");
+  await refreshSessionViews(id);
+}
+
+async function createComplaint(sessionId) {
+  const detail = await api(`/api/sessions/${sessionId}`);
+  const target = detail.members.find((member) => member.user_id !== state.user.id);
+  if (!target) {
+    toast("至少需要另一名成员才能投诉。");
+    return;
+  }
+  await api("/api/complaints", {
+    method: "POST",
+    body: {
+      session_id: sessionId,
+      target_user_id: target.user_id,
+      reason: "活动信息与描述不符",
+      evidence: "课堂演示数据",
+    },
+  });
+  toast("投诉已提交。");
+  await loadComplaints();
+}
+
+async function createSession(event) {
+  event.preventDefault();
+  const form = new FormData(event.currentTarget);
+  const payload = Object.fromEntries(form.entries());
+  payload.max_members = Number(payload.max_members);
+  payload.min_credit_required = Number(payload.min_credit_required);
+  await api("/api/sessions", { method: "POST", body: payload });
+  event.currentTarget.reset();
+  setDefaultTimes();
+  renderVenueSelect("#venueSelect", "", "请选择场地");
+  toast("组局已发布。");
+  await refreshSessionViews();
+  showView("sessions");
+}
+
+function renderNotifications(notifications) {
+  const list = $("#notificationList");
+  if (!list) return;
+  list.innerHTML = notifications.map((notification) => `
+    <div class="card notification-card ${notification.read_at ? "" : "unread"}">
+      <div class="notification-head">
+        <strong>${notification.title}</strong>
+        <span class="badge ${notification.read_at ? "good" : "bad"}">${notification.read_at ? "已读" : "未读"}</span>
+      </div>
+      <p>${notification.content}</p>
+      <p class="meta">
+        <span>${fmtTime(notification.created_at)}</span>
+        ${notification.read_at ? `<span>已读于 ${fmtTime(notification.read_at)}</span>` : ""}
+      </p>
+      ${notification.read_at ? "" : `<div class="actions"><button class="secondary" onclick="markNotificationRead('${notification.id}')">标为已读</button></div>`}
+    </div>
+  `).join("") || "<p class='meta'>暂无通知</p>";
+}
+
+function renderMineSessions(sessions, detailMap = {}) {
+  const list = $("#mineList");
+  if (!list) return;
+  list.innerHTML = sessions.map((session) => {
+    const isHostSession = session.host_id === state.user?.id;
+    const canEdit = isHostSession && ["recruiting", "full"].includes(session.status);
+    const canCancel = isHostSession && !["cancelled", "finished"].includes(session.status);
+    const canFinishMine = isHostSession && ["recruiting", "full"].includes(session.status);
+    const canLeaveMine = !isHostSession && isVerifiedStudent() && ["recruiting", "full"].includes(session.status);
+    const pendingApplications = isHostSession
+      ? (detailMap[session.id]?.applications || []).filter((item) => item.status === "pending")
+      : [];
+
+    const actionButtons = [
+      `<button class="secondary" onclick="openSessionFromMine('${session.id}')">查看详情</button>`,
+    ];
+    if (canEdit) actionButtons.push(`<button onclick="openEditSession('${session.id}')">编辑</button>`);
+    if (canFinishMine) actionButtons.push(`<button onclick="finishSession('${session.id}')">标记结束</button>`);
+    if (canCancel) actionButtons.push(`<button class="danger" onclick="cancelHostedSession('${session.id}')">取消组局</button>`);
+    if (canLeaveMine) actionButtons.push(`<button class="danger" onclick="leaveSession('${session.id}')">退出组局</button>`);
+
+    const reviewSection = isHostSession ? `
+      <div class="subsection">
+        <h4>待审核申请${session.join_mode === "manual" ? `（${pendingApplications.length}）` : ""}</h4>
+        ${session.join_mode !== "manual"
+          ? "<p class='hint'>当前组局为直接加入模式，无需发起人审核。</p>"
+          : pendingApplications.length
+            ? pendingApplications.map((application) => `
+              <div class="card">
+                <strong>${application.applicant?.nickname || application.applicant_id}</strong>
+                <p>${application.message || "无备注"}</p>
+                <div class="actions">
+                  <button onclick="reviewApplication('${application.id}', 'approve')">通过</button>
+                  <button class="danger" onclick="reviewApplication('${application.id}', 'reject')">拒绝</button>
+                </div>
+              </div>
+            `).join("")
+            : "<p class='hint'>暂无待审核申请。</p>"}
+      </div>
+    ` : "";
+
+    return `
+      <div class="card">
+        <div class="mine-session-header">
+          <div>
+            <strong>${session.title}</strong>
+            <p class="meta">
+              <span class="badge">${session.game_name}</span>
+              <span class="badge ${session.status === "recruiting" ? "good" : session.status === "full" ? "warn" : "bad"}">${session.status}</span>
+              <span class="badge">${isHostSession ? "我是发起人" : "我是成员"}</span>
+            </p>
+          </div>
+        </div>
+        <p>${session.description || "暂无说明"}</p>
+        <p class="meta">
+          <span>${fmtTime(session.start_time)}</span>
+          <span>${formatSessionLocation(session)}</span>
+          <span>人数 ${session.current_members}/${session.max_members}</span>
+          <span>场地状态：${session.venue_status}</span>
+        </p>
+        <div class="actions">${actionButtons.join("")}</div>
+        ${reviewSection}
+      </div>
+    `;
+  }).join("") || "<p class='meta'>暂无记录</p>";
+}
+
+function openSessionFromMine(id) {
+  showView("sessions");
+  showSession(id).catch((error) => toast(error.message));
+}
+
+async function openEditSession(id) {
+  const detail = await api(`/api/sessions/${id}`);
+  const block = $("#editSessionBlock");
+  const form = $("#editSessionForm");
+  if (!block || !form) return;
+
+  form.session_id.value = detail.id;
+  form.title.value = detail.title || "";
+  form.start_time.value = toLocalInputValue(detail.start_time);
+  form.end_time.value = toLocalInputValue(detail.end_time);
+  form.max_members.value = detail.max_members || "";
+  form.description.value = detail.description || "";
+  renderVenueSelect("#editVenueSelect", detail.venue_id || "", detail.venue_id ? "请选择场地" : `保持当前地点：${detail.location || "未设置"}`);
+
+  block.style.display = "block";
+  block.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+async function saveSessionEdit(event) {
+  event.preventDefault();
+  const form = new FormData(event.currentTarget);
+  const payload = Object.fromEntries(form.entries());
+  const sessionId = payload.session_id;
+  delete payload.session_id;
+  payload.max_members = Number(payload.max_members);
+  if (!payload.venue_id) delete payload.venue_id;
+  await api(`/api/sessions/${sessionId}`, {
+    method: "PATCH",
+    body: payload,
+  });
+  hideEditSessionPanel();
+  toast("组局信息已更新。");
+  await refreshSessionViews(sessionId);
+}
+
+async function leaveSession(id) {
+  const reason = window.prompt("请输入退出原因（可选）", "临时有事");
+  if (reason === null) return;
+  await api(`/api/sessions/${id}/leave`, {
+    method: "POST",
+    body: { reason },
+  });
+  hideEditSessionPanel();
+  toast("已退出该组局。");
+  await refreshSessionViews(id);
+}
+
+async function cancelHostedSession(id) {
+  const reason = window.prompt("请输入取消组局原因", "发起人时间调整");
+  if (reason === null) return;
+  await api(`/api/sessions/${id}/cancel`, {
+    method: "POST",
+    body: { reason },
+  });
+  hideEditSessionPanel();
+  toast("组局已取消。");
+  await refreshSessionViews(id);
 }
 
 async function loadMine() {
   if (!state.token) {
+    state.notifications = [];
+    hideEditSessionPanel();
+    renderNavigation();
     $("#mineList").innerHTML = "<p class='meta'>登录后查看</p>";
     $("#notificationList").innerHTML = "<p class='meta'>登录后查看</p>";
     return;
   }
+
   try {
     const [mine, notifications] = await Promise.all([api("/api/sessions/mine"), api("/api/notifications")]);
-    $("#mineList").innerHTML = mine.map((s) => `<div class="card"><strong>${s.title}</strong><p class="meta">${fmtTime(s.start_time)} · ${s.status}</p></div>`).join("") || "<p class='meta'>暂无记录</p>";
-    $("#notificationList").innerHTML = notifications.map((n) => `<div class="card"><strong>${n.title}</strong><p>${n.content}</p><p class="meta">${fmtTime(n.created_at)}</p></div>`).join("") || "<p class='meta'>暂无通知</p>";
+    const hostDetails = await Promise.all(
+      mine
+        .filter((session) => session.host_id === state.user?.id)
+        .map((session) => api(`/api/sessions/${session.id}`)),
+    );
+    const detailMap = Object.fromEntries(hostDetails.map((detail) => [detail.id, detail]));
+    state.notifications = notifications;
+    renderNavigation();
+    renderMineSessions(mine, detailMap);
+    renderNotifications(notifications);
   } catch {
+    state.notifications = [];
+    hideEditSessionPanel();
+    renderNavigation();
     $("#mineList").innerHTML = "<p class='meta'>登录后查看</p>";
     $("#notificationList").innerHTML = "<p class='meta'>登录后查看</p>";
   }
 }
 
+async function markNotificationRead(id) {
+  const updated = await api(`/api/notifications/${id}`, {
+    method: "PATCH",
+    body: {},
+  });
+  if (!updated) {
+    toast("通知不存在或无法操作。");
+    return;
+  }
+  state.notifications = state.notifications.map((item) => (item.id === id ? updated : item));
+  renderNavigation();
+  renderNotifications(state.notifications);
+  toast("通知已标为已读。");
+}
+
+function renderVenueManager() {
+  const block = $("#venueManageBlock");
+  if (!block) return;
+  block.style.display = isVenueAdmin() ? "block" : "none";
+  if (!isVenueAdmin()) resetVenueFormState();
+}
+
+function renderVenueCard(venue) {
+  const canManage = isVenueAdmin() && venue.manager_id === state.user?.id;
+  return `
+    <div class="card">
+      <strong>${venue.name}</strong>
+      <p>${venue.location} · 容量 ${venue.capacity}</p>
+      <p class="meta">
+        <span class="badge ${venue.status === "active" ? "good" : venue.status === "maintenance" ? "warn" : "bad"}">${venue.status}</span>
+        <span>${venue.available_time || "未设置开放时间"}</span>
+      </p>
+      <p>${venue.description || "暂无说明"}</p>
+      <p class="hint">${venue.open_rules || "暂无开放规则"}</p>
+      ${canManage ? `
+        <div class="actions">
+          <button onclick="startVenueEdit('${venue.id}')">编辑</button>
+          <button class="danger" onclick="deleteVenueAction('${venue.id}')">删除</button>
+        </div>
+      ` : ""}
+    </div>
+  `;
+}
+
+function renderReservationCard(reservation) {
+  const canReview = isVenueAdmin() && reservation.status === "pending";
+  return `
+    <div class="card">
+      <strong>${reservation.venue?.name || reservation.venue_id}</strong>
+      <p>${reservation.session?.title || reservation.session_id}</p>
+      <p class="meta">
+        <span>${fmtTime(reservation.start_time)} - ${fmtTime(reservation.end_time)}</span>
+        <span class="badge ${reservation.status === "approved" ? "good" : reservation.status === "pending" ? "warn" : reservation.status === "cancelled" ? "bad" : ""}">${reservation.status}</span>
+      </p>
+      ${canReview ? `
+        <div class="actions">
+          <button onclick="reviewReservation('${reservation.id}', 'approve')">通过</button>
+          <button class="danger" onclick="reviewReservation('${reservation.id}', 'reject')">驳回</button>
+        </div>
+      ` : ""}
+    </div>
+  `;
+}
+
 async function loadVenues() {
-  state.venues = await api("/api/venues");
-  $("#venueList").innerHTML = state.venues.map((v) => `<div class="card"><strong>${v.name}</strong><p>${v.location} · 容量 ${v.capacity}</p><p class="meta">${v.available_time}</p></div>`).join("");
+  const venuePath = isVenueAdmin() ? "/api/venues?status=" : "/api/venues";
+  state.venues = await api(venuePath);
+  renderVenueManager();
+  renderVenueSelects();
+  $("#venueList").innerHTML = state.venues.map(renderVenueCard).join("") || "<p class='meta'>暂无可用场地</p>";
+
   if (!state.token) {
     $("#reservationList").innerHTML = "<p class='meta'>登录后查看场地预约</p>";
     return;
   }
+
   try {
     const rows = await api("/api/venue-reservations");
-    $("#reservationList").innerHTML = rows.map((r) => `
-      <div class="card">
-        <strong>${r.venue?.name || r.venue_id}</strong>
-        <p>${r.session?.title || r.session_id}</p>
-        <p class="meta">${fmtTime(r.start_time)} · ${r.status}</p>
-        <div class="actions">
-          <button onclick="reviewReservation('${r.id}', 'approve')">通过</button>
-          <button class="danger" onclick="reviewReservation('${r.id}', 'reject')">驳回</button>
-        </div>
-      </div>
-    `).join("") || "<p class='meta'>暂无预约</p>";
+    $("#reservationList").innerHTML = rows.map(renderReservationCard).join("") || "<p class='meta'>暂无预约</p>";
   } catch {
-    $("#reservationList").innerHTML = "<p class='meta'>场地管理员或发起人登录后查看</p>";
+    $("#reservationList").innerHTML = "<p class='meta'>当前账号无可查看的预约记录</p>";
   }
+}
+
+async function saveVenue(event) {
+  event.preventDefault();
+  const form = new FormData(event.currentTarget);
+  const payload = Object.fromEntries(form.entries());
+  const venueId = payload.venue_id;
+  delete payload.venue_id;
+  payload.capacity = Number(payload.capacity);
+
+  if (venueId) {
+    await api(`/api/venues/${venueId}`, {
+      method: "PATCH",
+      body: payload,
+    });
+    toast("场地信息已更新。");
+  } else {
+    await api("/api/venues", {
+      method: "POST",
+      body: payload,
+    });
+    toast("场地已新增。");
+  }
+
+  resetVenueFormState();
+  await Promise.all([loadVenues(), loadSessions(), loadMine()]);
+}
+
+function startVenueEdit(id) {
+  const venue = state.venues.find((item) => item.id === id);
+  const form = $("#venueForm");
+  if (!venue || !form) return;
+  form.venue_id.value = venue.id;
+  form.name.value = venue.name || "";
+  form.location.value = venue.location || "";
+  form.capacity.value = venue.capacity || "";
+  form.status.value = venue.status || "active";
+  form.available_time.value = venue.available_time || "";
+  form.open_rules.value = venue.open_rules || "";
+  form.description.value = venue.description || "";
+  $("#venueSubmitBtn").textContent = "保存场地修改";
+  form.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+async function deleteVenueAction(id) {
+  const venue = state.venues.find((item) => item.id === id);
+  if (!venue) return;
+  const confirmed = window.confirm(`确定删除场地“${venue.name}”吗？相关预约和组局会被自动取消。`);
+  if (!confirmed) return;
+  await api(`/api/venues/${id}`, {
+    method: "DELETE",
+  });
+  toast("场地已删除，相关组局已同步取消。");
+  resetVenueFormState();
+  await Promise.all([loadVenues(), loadSessions(), loadMine()]);
 }
 
 async function reviewReservation(id, action) {
   await api(`/api/venue-reservations/${id}`, {
     method: "PATCH",
-    body: { action, reason: action === "approve" ? "场地可用" : "时段不合适" },
+    body: {
+      action,
+      reason: action === "approve" ? "场地可用" : "该时段无法提供场地",
+    },
   });
-  toast("场地预约已处理");
+  toast("场地预约已处理。");
   await loadVenues();
 }
 
 async function loadComplaints() {
-  if (!state.token) return;
+  if (!state.token) {
+    $("#creditPanel").innerHTML = "<p class='meta'>登录后查看信用记录</p>";
+    $("#complaintList").innerHTML = "<p class='meta'>登录后查看投诉</p>";
+    return;
+  }
+
   try {
     const credit = await api("/api/users/me/credit");
-    $("#creditPanel").innerHTML = `<div class="card"><strong>当前信用分：${credit.user.credit_score}</strong></div>` +
-      (credit.records.map((r) => `<div class="card">${r.change_value > 0 ? "+" : ""}${r.change_value} · ${r.reason}<p class="meta">${fmtTime(r.created_at)}</p></div>`).join("") || "<p class='meta'>暂无信用流水</p>");
+    $("#creditPanel").innerHTML = `<div class="card"><strong>当前信用分：${credit.user.credit_score}</strong></div>`
+      + (credit.records.map((record) => `<div class="card">${record.change_value > 0 ? "+" : ""}${record.change_value} · ${record.reason}<p class="meta">${fmtTime(record.created_at)}</p></div>`).join("") || "<p class='meta'>暂无信用流水</p>");
   } catch {
     $("#creditPanel").innerHTML = "<p class='meta'>登录后查看信用记录</p>";
   }
+
   try {
     const complaints = await api("/api/complaints");
-    $("#complaintList").innerHTML = complaints.map((c) => `
-      <div class="card">
-        <strong>${c.session?.title || c.session_id}</strong>
-        <p>${c.reason}</p>
-        <p class="meta">状态：${c.status} · 被投诉：${c.target_user?.nickname || c.target_user_id}</p>
-        <div class="actions">
-          <button onclick="handleComplaint('${c.id}', 'accept')">成立并扣分</button>
-          <button class="secondary" onclick="handleComplaint('${c.id}', 'reject')">驳回</button>
+    $("#complaintList").innerHTML = complaints.map((complaint) => {
+      const canHandle = isAdmin() && ["pending", "accepted", "need_more"].includes(complaint.status);
+      return `
+        <div class="card">
+          <strong>${complaint.session?.title || complaint.session_id}</strong>
+          <p>${complaint.reason}</p>
+          <p class="meta">状态：${complaint.status} · 被投诉：${complaint.target_user?.nickname || complaint.target_user_id}</p>
+          ${canHandle ? `
+            <div class="actions">
+              <button onclick="handleComplaint('${complaint.id}', 'accept')">成立并扣分</button>
+              <button class="secondary" onclick="handleComplaint('${complaint.id}', 'reject')">驳回</button>
+            </div>
+          ` : ""}
         </div>
-      </div>
-    `).join("") || "<p class='meta'>暂无投诉</p>";
+      `;
+    }).join("") || "<p class='meta'>暂无投诉</p>";
   } catch {
     $("#complaintList").innerHTML = "<p class='meta'>登录后查看投诉</p>";
   }
@@ -416,9 +829,13 @@ async function loadComplaints() {
 async function handleComplaint(id, action) {
   await api(`/api/complaints/${id}`, {
     method: "PATCH",
-    body: { action, result: action === "accept" ? "投诉成立，记录信用扣分" : "证据不足，驳回", credit_change: -10 },
+    body: {
+      action,
+      result: action === "accept" ? "投诉成立，记录信用扣分" : "证据不足，驳回处理",
+      credit_change: -10,
+    },
   });
-  toast("投诉已处理");
+  toast("投诉已处理。");
   await loadComplaints();
 }
 
@@ -447,14 +864,14 @@ function renderAuthReviewList(users) {
 
 async function reviewUserAuth(userId, action) {
   const reason = action === "approve"
-    ? "信息核验通过"
+    ? "信息校验通过"
     : window.prompt("请输入驳回原因", "学号或姓名信息不完整") || "";
   if (action === "reject" && !reason.trim()) return;
   await api(`/api/users/${userId}/auth`, {
     method: "PATCH",
     body: { action, reason },
   });
-  toast(action === "approve" ? "实名认证已通过" : "实名认证已驳回");
+  toast(action === "approve" ? "实名认证已通过。" : "实名认证已驳回。");
   await loadAdmin();
 }
 
@@ -474,19 +891,25 @@ async function loadAdmin() {
 function showView(name) {
   $$(".nav").forEach((button) => button.classList.toggle("active", button.dataset.view === name));
   $$(".view").forEach((view) => view.classList.toggle("active", view.id === `view-${name}`));
-  if (name === "auth") loadAuthView();
-  if (name === "mine") loadMine();
-  if (name === "venues") loadVenues();
-  if (name === "complaints") loadComplaints();
-  if (name === "admin") loadAdmin();
+  if (name === "auth") loadAuthView().catch((error) => toast(error.message));
+  if (name === "mine") loadMine().catch((error) => toast(error.message));
+  if (name === "venues") loadVenues().catch((error) => toast(error.message));
+  if (name === "complaints") loadComplaints().catch((error) => toast(error.message));
+  if (name === "admin") loadAdmin().catch((error) => toast(error.message));
 }
 
 window.showSession = showSession;
 window.applySession = applySession;
 window.reviewApplication = reviewApplication;
 window.finishSession = finishSession;
-window.requestVenue = requestVenue;
 window.createComplaint = createComplaint;
+window.openSessionFromMine = openSessionFromMine;
+window.openEditSession = openEditSession;
+window.leaveSession = leaveSession;
+window.cancelHostedSession = cancelHostedSession;
+window.markNotificationRead = markNotificationRead;
+window.startVenueEdit = startVenueEdit;
+window.deleteVenueAction = deleteVenueAction;
 window.reviewReservation = reviewReservation;
 window.handleComplaint = handleComplaint;
 window.reviewUserAuth = reviewUserAuth;
@@ -497,6 +920,10 @@ $("#typeFilter").addEventListener("change", () => loadSessions().catch((error) =
 $("#keywordFilter").addEventListener("input", () => loadSessions().catch((error) => toast(error.message)));
 $("#createSessionForm").addEventListener("submit", (event) => createSession(event).catch((error) => toast(error.message)));
 $("#authForm").addEventListener("submit", (event) => submitAuthRequest(event).catch((error) => toast(error.message)));
+$("#editSessionForm").addEventListener("submit", (event) => saveSessionEdit(event).catch((error) => toast(error.message)));
+$("#venueForm").addEventListener("submit", (event) => saveVenue(event).catch((error) => toast(error.message)));
+$("#closeEditSession").addEventListener("click", hideEditSessionPanel);
+$("#resetVenueForm").addEventListener("click", resetVenueFormState);
 $("#refreshAuth").addEventListener("click", () => loadAuthView().catch((error) => toast(error.message)));
 $("#refreshMine").addEventListener("click", () => loadMine().catch((error) => toast(error.message)));
 $("#refreshVenues").addEventListener("click", () => loadVenues().catch((error) => toast(error.message)));

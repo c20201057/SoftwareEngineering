@@ -189,6 +189,11 @@ async function handleApi(app, req, res, url) {
     return;
   }
 
+  if (req.method === "DELETE" && pathParts[1] === "venues" && pathParts[2]) {
+    ok(res, services.venueService.remove(user, pathParts[2]));
+    return;
+  }
+
   if (req.method === "GET" && route === "/venue-reservations") {
     ok(res, services.venueService.listReservations(user, query));
     return;

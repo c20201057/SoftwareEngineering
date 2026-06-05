@@ -18,8 +18,8 @@ function createApp(options = {}) {
   const notificationService = new NotificationService(store);
   const logService = new LogService(store);
   const gameService = new GameService(store, userService, logService);
-  const sessionService = new SessionService(store, userService, gameService, notificationService, logService);
   const venueService = new VenueService(store, userService, notificationService, logService);
+  const sessionService = new SessionService(store, userService, gameService, notificationService, logService, venueService);
   const complaintService = new ComplaintService(store, userService, sessionService, notificationService, logService);
   const statsService = new StatsService(store);
 

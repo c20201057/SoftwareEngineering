@@ -4,14 +4,17 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>校缘聚 CampusGather</title>
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%232563eb'/%3E%3Ctext x='32' y='41' text-anchor='middle' font-size='28' fill='white' font-family='Arial'%3ECG%3C/text%3E%3C/svg%3E" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%232563eb'/%3E%3Ctext x='32' y='41' text-anchor='middle' font-size='28' fill='white' font-family='Arial'%3ECG%3C/text%3E%3C/svg%3E"
+    />
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
     <header class="topbar">
       <div>
         <h1>校缘聚 CampusGather</h1>
-        <p>校园桌游/剧本杀组局平台原型</p>
+        <p>校园桌游 / 剧本杀组局平台原型</p>
       </div>
       <div class="login-panel">
         <label for="account">演示账号</label>
@@ -32,11 +35,14 @@
         <div class="profile" id="profile">未登录</div>
         <nav>
           <button class="nav active" data-view="sessions">组局大厅</button>
-          <button class="nav" data-view="create">发布组局</button>
+          <button class="nav" data-view="create" id="createNav">发布组局</button>
           <button class="nav" data-view="auth" id="authNav">实名认证</button>
-          <button class="nav" data-view="mine">我的组局/通知</button>
-          <button class="nav" data-view="venues">场地管理</button>
-          <button class="nav" data-view="complaints">投诉与信用</button>
+          <button class="nav" data-view="mine" id="mineNav">
+            <span class="nav-label">我的组局/通知</span>
+            <span id="mineBadge" class="nav-badge" aria-live="polite"></span>
+          </button>
+          <button class="nav" data-view="venues" id="venuesNav">场地管理</button>
+          <button class="nav" data-view="complaints" id="complaintsNav">投诉与信用</button>
           <button class="nav" data-view="admin" id="adminNav">管理员后台</button>
         </nav>
       </aside>
@@ -68,10 +74,18 @@
             <label>标题<input name="title" required value="周末剧本杀招募" /></label>
             <label>开始时间<input name="start_time" type="datetime-local" required /></label>
             <label>结束时间<input name="end_time" type="datetime-local" required /></label>
-            <label>地点<input name="location" required value="学生活动中心三楼" /></label>
+            <label>地点
+              <select name="venue_id" id="venueSelect" required></select>
+            </label>
             <label>人数上限<input name="max_members" type="number" min="2" value="6" /></label>
             <label>最低信用分<input name="min_credit_required" type="number" value="80" /></label>
-            <label>加入方式<select name="join_mode"><option value="manual">发起人审核</option><option value="direct">直接加入</option></select></label>
+            <label>
+              加入方式
+              <select name="join_mode">
+                <option value="manual">发起人审核</option>
+                <option value="direct">直接加入</option>
+              </select>
+            </label>
             <label class="wide">说明<textarea name="description">准时集合，结束后互评。</textarea></label>
             <button class="wide" type="submit">发布</button>
           </form>
@@ -101,6 +115,24 @@
             <h3>我的组局</h3>
             <div id="mineList" class="stack"></div>
           </div>
+          <div class="section-block" id="editSessionBlock" style="display: none;">
+            <div class="section-head">
+              <h3>编辑组局</h3>
+              <button id="closeEditSession" class="secondary" type="button">关闭</button>
+            </div>
+            <form id="editSessionForm" class="form-grid">
+              <input type="hidden" name="session_id" />
+              <label>标题<input name="title" required /></label>
+              <label>地点
+                <select name="venue_id" id="editVenueSelect"></select>
+              </label>
+              <label>开始时间<input name="start_time" type="datetime-local" required /></label>
+              <label>结束时间<input name="end_time" type="datetime-local" required /></label>
+              <label>人数上限<input name="max_members" type="number" min="2" required /></label>
+              <label class="wide">说明<textarea name="description"></textarea></label>
+              <button class="wide" type="submit">保存修改</button>
+            </form>
+          </div>
           <div class="section-block">
             <h3>通知</h3>
             <div id="notificationList" class="stack"></div>
@@ -115,6 +147,29 @@
           <div class="split">
             <div>
               <h3>可预约场地</h3>
+              <div id="venueManageBlock" class="section-block" style="display: none;">
+                <form id="venueForm" class="form-grid">
+                  <input type="hidden" name="venue_id" />
+                  <label>场地名称<input name="name" required /></label>
+                  <label>具体位置<input name="location" required /></label>
+                  <label>容量<input name="capacity" type="number" min="1" required /></label>
+                  <label>
+                    状态
+                    <select name="status">
+                      <option value="active">可预约</option>
+                      <option value="maintenance">维护中</option>
+                      <option value="closed">已关闭</option>
+                    </select>
+                  </label>
+                  <label class="wide">开放时间<input name="available_time" placeholder="如：周一至周日 09:00-22:30" /></label>
+                  <label class="wide">开放规则<textarea name="open_rules" placeholder="如：需提前一天申请"></textarea></label>
+                  <label class="wide">说明<textarea name="description" placeholder="补充场地用途、噪音限制等"></textarea></label>
+                  <div class="wide form-actions">
+                    <button type="submit" id="venueSubmitBtn">新增场地</button>
+                    <button type="button" class="secondary" id="resetVenueForm">清空</button>
+                  </div>
+                </form>
+              </div>
               <div id="venueList" class="stack"></div>
             </div>
             <div>

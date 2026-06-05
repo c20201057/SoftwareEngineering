@@ -61,7 +61,7 @@ CREATE TABLE game_sessions (
   min_credit_required INT NOT NULL DEFAULT 80,
   join_mode ENUM('manual', 'direct') NOT NULL DEFAULT 'manual',
   status ENUM('recruiting', 'full', 'finished', 'cancelled') NOT NULL DEFAULT 'recruiting',
-  venue_status ENUM('none', 'pending', 'approved', 'rejected') NOT NULL DEFAULT 'none',
+  venue_status ENUM('none', 'pending', 'approved', 'rejected', 'cancelled') NOT NULL DEFAULT 'none',
   cancel_reason VARCHAR(255) NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NULL,

@@ -131,16 +131,40 @@ nav {
 }
 
 .nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   background: #fff;
   color: var(--ink);
   border-color: var(--line);
   text-align: left;
 }
 
+.nav-label {
+  flex: 1;
+  min-width: 0;
+}
+
 .nav.active {
   background: var(--accent);
   color: #fff;
   border-color: var(--accent);
+}
+
+.nav-badge {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .content {
@@ -267,6 +291,12 @@ nav {
   grid-column: 1 / -1;
 }
 
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .section-block {
   margin-top: 16px;
 }
@@ -279,6 +309,39 @@ nav {
 
 .split h3 {
   margin: 0 0 10px;
+}
+
+.mine-session-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.subsection {
+  margin-top: 12px;
+}
+
+.subsection h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.notification-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.notification-card.unread {
+  border-color: #fecaca;
+  background: #fff8f8;
 }
 
 .json {

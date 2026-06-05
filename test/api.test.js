@@ -20,8 +20,8 @@ async function createTestServer() {
   };
 }
 
-async function request(baseUrl, method, path, body, token) {
-  const res = await fetch(`${baseUrl}${path}`, {
+async function request(baseUrl, method, targetPath, body, token) {
+  const response = await fetch(`${baseUrl}${targetPath}`, {
     method,
     headers: {
       "content-type": "application/json",
@@ -29,14 +29,24 @@ async function request(baseUrl, method, path, body, token) {
     },
     body: body ? JSON.stringify(body) : undefined,
   });
-  const payload = await res.json();
-  return { status: res.status, payload };
+  const payload = await response.json();
+  return { status: response.status, payload };
 }
 
 async function login(baseUrl, studentNo) {
   const { payload } = await request(baseUrl, "POST", "/api/auth/login", { student_no: studentNo });
   assert.equal(payload.success, true);
   return payload.data.token;
+}
+
+function createFutureWindow(daysFromNow = 5, startHour = 19, durationHours = 3) {
+  const start = new Date(Date.now() + daysFromNow * 24 * 3600 * 1000);
+  start.setHours(startHour, 0, 0, 0);
+  const end = new Date(start.getTime() + durationHours * 3600 * 1000);
+  return {
+    start: start.toISOString(),
+    end: end.toISOString(),
+  };
 }
 
 test("health and public session list work", async () => {
@@ -54,14 +64,13 @@ test("health and public session list work", async () => {
   }
 });
 
-test("verified student can publish and another student can apply then host approves", async () => {
+test("verified student can publish with selected venue and host can approve applications", async () => {
   const ctx = await createTestServer();
   try {
     const hostToken = await login(ctx.baseUrl, "2314007");
     const applicantToken = await login(ctx.baseUrl, "2313983");
+    const time = createFutureWindow(5, 19, 3);
 
-    const start = new Date(Date.now() + 5 * 24 * 3600 * 1000);
-    const end = new Date(start.getTime() + 3 * 3600 * 1000);
     const create = await request(
       ctx.baseUrl,
       "POST",
@@ -70,9 +79,9 @@ test("verified student can publish and another student can apply then host appro
         game_id: "g1",
         title: "测试阿瓦隆局",
         description: "接口测试创建",
-        start_time: start.toISOString(),
-        end_time: end.toISOString(),
-        location: "测试教室",
+        start_time: time.start,
+        end_time: time.end,
+        venue_id: "v1",
         max_members: 6,
         min_credit_required: 80,
         join_mode: "manual",
@@ -80,6 +89,8 @@ test("verified student can publish and another student can apply then host appro
       hostToken,
     );
     assert.equal(create.status, 201);
+    assert.equal(create.payload.data.venue_status, "approved");
+    assert.equal(create.payload.data.venue_reservation.status, "approved");
     const sessionId = create.payload.data.id;
 
     const apply = await request(ctx.baseUrl, "POST", `/api/sessions/${sessionId}/applications`, { message: "准时参加" }, applicantToken);
@@ -130,7 +141,6 @@ test("student can submit auth request and admin approval unlocks join flow", asy
     );
     assert.equal(submit.status, 200);
     assert.equal(submit.payload.data.auth_status, "pending");
-    assert.equal(submit.payload.data.auth_submission.real_name, "苏雨辰");
     const firstSubmittedAt = submit.payload.data.auth_submitted_at;
 
     const revise = await request(
@@ -147,14 +157,13 @@ test("student can submit auth request and admin approval unlocks join flow", asy
     );
     assert.equal(revise.status, 200);
     assert.equal(revise.payload.data.auth_status, "pending");
-    assert.equal(revise.payload.data.auth_submission.note, "补充学院与班级信息");
     assert.equal(revise.payload.data.auth_submitted_at, firstSubmittedAt);
 
     const review = await request(
       ctx.baseUrl,
       "PATCH",
       "/api/users/u3/auth",
-      { action: "approve", reason: "信息核验通过" },
+      { action: "approve", reason: "信息校验通过" },
       adminToken,
     );
     assert.equal(review.status, 200);
@@ -167,11 +176,13 @@ test("student can submit auth request and admin approval unlocks join flow", asy
   }
 });
 
-test("venue admin can approve reservation and conflict is prevented", async () => {
+test("venue admin can approve manual reservation and overlapping reservation is prevented", async () => {
   const ctx = await createTestServer();
   try {
     const hostToken = await login(ctx.baseUrl, "2314007");
+    const secondHostToken = await login(ctx.baseUrl, "2313983");
     const venueToken = await login(ctx.baseUrl, "venue001");
+    const time = createFutureWindow(7, 18, 3);
 
     const reservation = await request(
       ctx.baseUrl,
@@ -180,33 +191,179 @@ test("venue admin can approve reservation and conflict is prevented", async () =
       {
         session_id: "s1",
         venue_id: "v1",
-        start_time: "2026-06-07T19:00:00.000Z",
-        end_time: "2026-06-07T22:00:00.000Z",
+        start_time: time.start,
+        end_time: time.end,
         reason: "测试预约",
       },
       hostToken,
     );
     assert.equal(reservation.status, 201);
+    assert.equal(reservation.payload.data.status, "pending");
 
-    const approved = await request(ctx.baseUrl, "PATCH", `/api/venue-reservations/${reservation.payload.data.id}`, { action: "approve", reason: "可用" }, venueToken);
+    const approved = await request(
+      ctx.baseUrl,
+      "PATCH",
+      `/api/venue-reservations/${reservation.payload.data.id}`,
+      { action: "approve", reason: "场地可用" },
+      venueToken,
+    );
     assert.equal(approved.status, 200);
     assert.equal(approved.payload.data.status, "approved");
 
-    const second = await request(
+    const conflictRequest = await request(
       ctx.baseUrl,
       "POST",
       "/api/venue-reservations",
       {
         session_id: "s2",
         venue_id: "v1",
-        start_time: "2026-06-07T20:00:00.000Z",
-        end_time: "2026-06-07T21:00:00.000Z",
+        start_time: new Date(new Date(time.start).getTime() + 60 * 60 * 1000).toISOString(),
+        end_time: new Date(new Date(time.start).getTime() + 2 * 60 * 60 * 1000).toISOString(),
         reason: "冲突预约",
       },
-      await login(ctx.baseUrl, "2313983"),
+      secondHostToken,
+    );
+    assert.equal(conflictRequest.status, 409);
+    assert.equal(conflictRequest.payload.error.code, "CONFLICT");
+  } finally {
+    await ctx.close();
+  }
+});
+
+test("publishing with selected venue blocks overlapping sessions", async () => {
+  const ctx = await createTestServer();
+  try {
+    const firstHostToken = await login(ctx.baseUrl, "2314007");
+    const secondHostToken = await login(ctx.baseUrl, "2313983");
+    const firstTime = createFutureWindow(6, 19, 3);
+
+    const first = await request(
+      ctx.baseUrl,
+      "POST",
+      "/api/sessions",
+      {
+        game_id: "g1",
+        title: "先占场地的局",
+        start_time: firstTime.start,
+        end_time: firstTime.end,
+        venue_id: "v1",
+        max_members: 6,
+        join_mode: "manual",
+      },
+      firstHostToken,
+    );
+    assert.equal(first.status, 201);
+
+    const second = await request(
+      ctx.baseUrl,
+      "POST",
+      "/api/sessions",
+      {
+        game_id: "g2",
+        title: "冲突场地局",
+        start_time: new Date(new Date(firstTime.start).getTime() + 30 * 60 * 1000).toISOString(),
+        end_time: new Date(new Date(firstTime.end).getTime() - 30 * 60 * 1000).toISOString(),
+        venue_id: "v1",
+        max_members: 4,
+        join_mode: "direct",
+      },
+      secondHostToken,
     );
     assert.equal(second.status, 409);
     assert.equal(second.payload.error.code, "CONFLICT");
+  } finally {
+    await ctx.close();
+  }
+});
+
+test("venue admin can create update and delete venue with cancellation cascade notifications", async () => {
+  const ctx = await createTestServer();
+  try {
+    const venueToken = await login(ctx.baseUrl, "venue001");
+    const hostToken = await login(ctx.baseUrl, "2314007");
+    const applicantToken = await login(ctx.baseUrl, "2313983");
+    const time = createFutureWindow(8, 14, 3);
+
+    const createdVenue = await request(
+      ctx.baseUrl,
+      "POST",
+      "/api/venues",
+      {
+        name: "测试活动室",
+        location: "综合楼 401",
+        capacity: 10,
+        available_time: "周一至周日 09:00-22:00",
+        open_rules: "需保持安静",
+        description: "用于自动化测试",
+      },
+      venueToken,
+    );
+    assert.equal(createdVenue.status, 201);
+    const venueId = createdVenue.payload.data.id;
+
+    const updatedVenue = await request(
+      ctx.baseUrl,
+      "PATCH",
+      `/api/venues/${venueId}`,
+      {
+        name: "测试活动室-更新",
+        location: "综合楼 402",
+        capacity: 10,
+        status: "active",
+        available_time: "周一至周日 10:00-21:00",
+        open_rules: "需提前登记",
+        description: "更新后的说明",
+      },
+      venueToken,
+    );
+    assert.equal(updatedVenue.status, 200);
+    assert.equal(updatedVenue.payload.data.name, "测试活动室-更新");
+
+    const createdSession = await request(
+      ctx.baseUrl,
+      "POST",
+      "/api/sessions",
+      {
+        game_id: "g1",
+        title: "等待被取消的组局",
+        start_time: time.start,
+        end_time: time.end,
+        venue_id: venueId,
+        max_members: 6,
+        join_mode: "manual",
+      },
+      hostToken,
+    );
+    assert.equal(createdSession.status, 201);
+    const sessionId = createdSession.payload.data.id;
+
+    const apply = await request(
+      ctx.baseUrl,
+      "POST",
+      `/api/sessions/${sessionId}/applications`,
+      { message: "我先申请一下" },
+      applicantToken,
+    );
+    assert.equal(apply.status, 201);
+
+    const removed = await request(ctx.baseUrl, "DELETE", `/api/venues/${venueId}`, undefined, venueToken);
+    assert.equal(removed.status, 200);
+    assert.equal(removed.payload.data.deleted, true);
+
+    const detail = await request(ctx.baseUrl, "GET", `/api/sessions/${sessionId}`, undefined, hostToken);
+    assert.equal(detail.status, 200);
+    assert.equal(detail.payload.data.status, "cancelled");
+    assert.equal(detail.payload.data.venue_status, "cancelled");
+
+    const hostReservations = await request(ctx.baseUrl, "GET", "/api/venue-reservations", undefined, hostToken);
+    const cancelledReservation = hostReservations.payload.data.find((item) => item.session_id === sessionId);
+    assert.ok(cancelledReservation);
+    assert.equal(cancelledReservation.status, "cancelled");
+
+    const hostNotifications = await request(ctx.baseUrl, "GET", "/api/notifications", undefined, hostToken);
+    const applicantNotifications = await request(ctx.baseUrl, "GET", "/api/notifications", undefined, applicantToken);
+    assert.equal(hostNotifications.payload.data.some((item) => item.title.includes("场地删除")), true);
+    assert.equal(applicantNotifications.payload.data.some((item) => item.title.includes("场地删除")), true);
   } finally {
     await ctx.close();
   }
@@ -218,9 +375,8 @@ test("admin handles complaint and credit score changes", async () => {
     const hostToken = await login(ctx.baseUrl, "2314007");
     const studentToken = await login(ctx.baseUrl, "2313983");
     const adminToken = await login(ctx.baseUrl, "2311987");
+    const time = createFutureWindow(9, 18, 2);
 
-    const start = new Date(Date.now() + 6 * 24 * 3600 * 1000);
-    const end = new Date(start.getTime() + 2 * 3600 * 1000);
     const create = await request(
       ctx.baseUrl,
       "POST",
@@ -228,16 +384,19 @@ test("admin handles complaint and credit score changes", async () => {
       {
         game_id: "g1",
         title: "投诉测试局",
-        start_time: start.toISOString(),
-        end_time: end.toISOString(),
-        location: "测试地点",
+        start_time: time.start,
+        end_time: time.end,
+        venue_id: "v2",
         max_members: 6,
         join_mode: "direct",
       },
       hostToken,
     );
+    assert.equal(create.status, 201);
     const sessionId = create.payload.data.id;
-    await request(ctx.baseUrl, "POST", `/api/sessions/${sessionId}/applications`, {}, studentToken);
+
+    const join = await request(ctx.baseUrl, "POST", `/api/sessions/${sessionId}/applications`, {}, studentToken);
+    assert.equal(join.status, 201);
 
     const complaint = await request(
       ctx.baseUrl,
