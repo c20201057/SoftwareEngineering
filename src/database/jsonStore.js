@@ -94,7 +94,7 @@ class JsonStore {
 
   insert(collection, record) {
     const rows = this.read(collection);
-    const next = { ...record, id: record.id || this.nextId(collection, rows) };
+    const next = { ...record, id: record.id || this.nextId(collection, rows, record) };
     rows.push(next);
     this.write(collection, rows);
     return deepClone(next);
@@ -116,7 +116,10 @@ class JsonStore {
     return rows.length !== next.length;
   }
 
-  nextId(collection, rows = this.read(collection)) {
+  nextId(collection, rows = this.read(collection), record = {}) {
+    if (collection === "users") {
+      return this.nextAccountId(rows, record.role);
+    }
     const prefix = PREFIX[collection] || "id";
     let max = 0;
     for (const row of rows) {
@@ -126,6 +129,24 @@ class JsonStore {
       if (Number.isFinite(value)) max = Math.max(max, value);
     }
     return `${prefix}${max + 1}`;
+  }
+
+  nextAccountId(rows, role = "student") {
+    const isAdminRole = ["admin", "venue_admin"].includes(role);
+    const min = isAdminRole ? 10001 : 11001;
+    const max = isAdminRole ? 11000 : 99999;
+    let current = min - 1;
+    for (const row of rows) {
+      const value = Number(row.id);
+      if (Number.isInteger(value) && value >= min && value <= max) {
+        current = Math.max(current, value);
+      }
+    }
+    const next = current + 1;
+    if (next > max) {
+      throw new Error(`No available account id in range ${min}-${max}`);
+    }
+    return String(next);
   }
 }
 

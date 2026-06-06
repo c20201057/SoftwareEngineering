@@ -189,7 +189,7 @@ function renderNavigation() {
   const adminNav = $("#adminNav");
 
   if (createNav) createNav.style.display = isVerifiedStudent() ? "" : "none";
-  if (authNav) authNav.style.display = isStudent() ? "" : "none";
+  if (authNav) authNav.style.display = isLoggedIn() ? "" : "none";
   if (mineNav) mineNav.style.display = isLoggedIn() ? "" : "none";
   if (complaintsNav) complaintsNav.style.display = isLoggedIn() ? "" : "none";
   if (adminNav) adminNav.style.display = isAdmin() ? "" : "none";
@@ -202,94 +202,183 @@ function renderNavigation() {
 
 function authStatusText(status) {
   if (status === "verified") return "已认证";
-  if (status === "pending") return "待审核";
-  if (status === "rejected") return "已驳回";
-  return "未认证";
+  if (status === "pending") return "审核中";
+  return "暂未认证";
 }
 
 function authStatusTone(status) {
   if (status === "verified") return "good";
   if (status === "pending") return "warn";
-  if (status === "rejected") return "bad";
-  return "";
+  return "bad";
+}
+
+const RECOMMENDED_TAGS = [
+  "推理",
+  "策略",
+  "新手友好",
+  "沉浸演绎",
+  "社交破冰",
+  "轻松欢乐",
+  "高能反转",
+  "剧情还原",
+  "团队协作",
+  "低压力",
+  "男性角色偏好",
+  "女性角色偏好",
+];
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function roleText(role) {
+  if (role === "admin") return "系统管理员";
+  if (role === "venue_admin") return "场地管理员";
+  if (role === "student") return "学生";
+  return role || "未知";
+}
+
+function parseTags(value) {
+  if (Array.isArray(value)) return value.map((item) => String(item).trim()).filter(Boolean);
+  return String(value || "")
+    .split(/[,，、\s]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function uniqueTags(tags) {
+  return [...new Set(tags)].slice(0, 8);
+}
+
+function renderTagList(tags) {
+  if (!tags.length) return "<span class='hint'>暂无偏好</span>";
+  return tags.map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join("");
 }
 
 function renderAuthPanel() {
   const panel = $("#authPanel");
-  const form = $("#authForm");
-  if (!panel || !form) return;
+  if (!panel) return;
 
-  if (!isStudent()) {
-    panel.innerHTML = "<p class='meta'>学生账号登录后可查看实名认证状态。</p>";
-    form.style.display = "none";
+  if (!state.user) {
+    panel.innerHTML = "<p class='meta'>登录后查看个人主页。</p>";
     return;
   }
 
-  const submission = state.user.auth_submission || {};
-  const status = state.user.auth_status || "pending";
-  const submittedAt = state.user.auth_submitted_at ? fmtTime(state.user.auth_submitted_at) : "尚未提交";
-  const reviewedAt = state.user.auth_reviewed_at ? fmtTime(state.user.auth_reviewed_at) : "暂无";
-  const canEditSubmission = status !== "verified";
-  const helperText = status === "pending"
-    ? "资料正在审核中，当前不能重复发起新申请；如需补充信息，可以直接修改后保存。"
-    : status === "rejected"
-      ? "申请已被驳回，请根据审核意见修改后重新提交。"
-      : status === "verified"
-        ? "当前账号已完成实名认证。"
-        : "请填写真实姓名、学号和联系方式后提交。";
-
+  const tags = uniqueTags(state.user.tags || []);
+  const status = state.user.auth_status || "rejected";
   panel.innerHTML = `
-    <div class="card">
-      <div class="meta">
-        <span class="badge ${authStatusTone(status)}">${authStatusText(status)}</span>
-        <span class="badge">最近提交：${submittedAt}</span>
-        <span class="badge">最近审核：${reviewedAt}</span>
+    <div class="card profile-card">
+      <div class="profile-summary">
+        <div class="profile-field">
+          <span>UID</span>
+          <strong>${escapeHtml(state.user.id)}</strong>
+        </div>
+        <div class="profile-field">
+          <span>昵称</span>
+          <strong>${escapeHtml(state.user.nickname || state.user.name || "未设置")}</strong>
+        </div>
+        <div class="profile-field">
+          <span>角色</span>
+          <strong>${escapeHtml(roleText(state.user.role))}</strong>
+        </div>
+        <div class="profile-field">
+          <span>认证状态</span>
+          <button type="button" class="auth-status-button" onclick="showAuthFeatureUnavailable()">
+            <strong class="badge ${authStatusTone(status)}">${authStatusText(status)}</strong>
+          </button>
+        </div>
+        <div class="profile-field">
+          <span>信用分</span>
+          <strong>${Number(state.user.credit_score || 0)}</strong>
+        </div>
       </div>
-      <p>当前提交姓名：${submission.real_name || "未填写"}</p>
-      <p>当前提交学号：${submission.student_no || "未填写"}</p>
-      <p>联系方式：${submission.contact || "未填写"}</p>
-      <p>审核说明：${state.user.auth_review_reason || "暂无"}</p>
-      <p>${helperText}</p>
+      <div>
+        <h3>个人偏好</h3>
+        <div class="tag-list">${renderTagList(tags)}</div>
+      </div>
+      <div class="actions">
+        <button type="button" onclick="openProfileDialog()">编辑个人资料</button>
+      </div>
     </div>
   `;
-
-  form.style.display = canEditSubmission ? "grid" : "none";
-  if (!canEditSubmission) return;
-  form.real_name.value = submission.real_name || state.user.name || "";
-  form.student_no.value = submission.student_no || state.user.student_no || "";
-  form.contact.value = submission.contact || state.user.contact || "";
-  form.note.value = submission.note || "";
-  form.querySelector("button[type=submit]").textContent = status === "pending"
-    ? "保存当前修改"
-    : status === "rejected"
-      ? "重新提交实名认证申请"
-      : "提交实名认证申请";
 }
 
 async function loadAuthView() {
+  if (state.token) {
+    state.user = await api("/api/users/me");
+    renderProfile();
+  }
   renderAuthPanel();
 }
 
-async function submitAuthRequest(event) {
+function showAuthFeatureUnavailable() {
+  toast("暂未开通此功能");
+}
+
+function openProfileDialog() {
+  if (!state.user) return;
+  const dialog = $("#profileDialog");
+  const form = $("#profileEditForm");
+  if (!dialog || !form) return;
+  form.nickname.value = state.user.nickname || "";
+  form.contact.value = state.user.contact || "";
+  form.tags.value = (state.user.tags || []).join(", ");
+  renderProfileDialogAuthStatus();
+  renderRecommendedTags();
+  dialog.hidden = false;
+}
+
+function closeProfileDialog() {
+  const dialog = $("#profileDialog");
+  if (dialog) dialog.hidden = true;
+}
+
+function renderRecommendedTags() {
+  const box = $("#recommendedTags");
+  if (!box) return;
+  box.innerHTML = RECOMMENDED_TAGS
+    .map((tag) => `<button type="button" class="tag-button" onclick="addRecommendedTag('${escapeHtml(tag)}')">${escapeHtml(tag)}</button>`)
+    .join("");
+}
+
+function renderProfileDialogAuthStatus() {
+  const box = $("#profileDialogAuthStatus");
+  if (!box || !state.user) return;
+  const status = state.user.auth_status || "unverified";
+  const shouldShowAuthButton = status !== "verified" && status !== "pending";
+  box.innerHTML = `
+    <span class="badge ${authStatusTone(status)}">${authStatusText(status)}</span>
+    ${shouldShowAuthButton ? `<button type="button" class="secondary" onclick="showAuthFeatureUnavailable()">立即认证</button>` : ""}
+  `;
+}
+
+function addRecommendedTag(tag) {
+  const form = $("#profileEditForm");
+  if (!form) return;
+  const tags = uniqueTags(parseTags(form.tags.value).concat(tag));
+  form.tags.value = tags.join(", ");
+}
+
+async function saveProfileEdit(event) {
   event.preventDefault();
-  const previousStatus = state.user?.auth_status;
   const form = new FormData(event.currentTarget);
   const payload = Object.fromEntries(form.entries());
-  await api("/api/users/me/auth", {
-    method: "POST",
+  payload.tags = uniqueTags(parseTags(payload.tags));
+  await api("/api/users/me", {
+    method: "PUT",
     body: payload,
   });
   state.user = await api("/api/users/me");
+  closeProfileDialog();
   renderProfile();
   renderNavigation();
   renderAuthPanel();
-  if (previousStatus === "pending") {
-    toast("实名认证资料已更新，仍处于待审核状态。");
-  } else if (previousStatus === "rejected") {
-    toast("实名认证申请已重新提交。");
-  } else {
-    toast("实名认证申请已提交。");
-  }
+  toast("个人资料已更新。");
 }
 
 async function loadBootstrap() {
@@ -913,16 +1002,23 @@ window.deleteVenueAction = deleteVenueAction;
 window.reviewReservation = reviewReservation;
 window.handleComplaint = handleComplaint;
 window.reviewUserAuth = reviewUserAuth;
+window.showAuthFeatureUnavailable = showAuthFeatureUnavailable;
+window.openProfileDialog = openProfileDialog;
+window.addRecommendedTag = addRecommendedTag;
 
 $("#loginBtn").addEventListener("click", () => login().catch((error) => toast(error.message)));
 $("#refreshSessions").addEventListener("click", () => loadSessions().catch((error) => toast(error.message)));
 $("#typeFilter").addEventListener("change", () => loadSessions().catch((error) => toast(error.message)));
 $("#keywordFilter").addEventListener("input", () => loadSessions().catch((error) => toast(error.message)));
 $("#createSessionForm").addEventListener("submit", (event) => createSession(event).catch((error) => toast(error.message)));
-$("#authForm").addEventListener("submit", (event) => submitAuthRequest(event).catch((error) => toast(error.message)));
+$("#profileEditForm").addEventListener("submit", (event) => saveProfileEdit(event).catch((error) => toast(error.message)));
 $("#editSessionForm").addEventListener("submit", (event) => saveSessionEdit(event).catch((error) => toast(error.message)));
 $("#venueForm").addEventListener("submit", (event) => saveVenue(event).catch((error) => toast(error.message)));
 $("#closeEditSession").addEventListener("click", hideEditSessionPanel);
+$("#closeProfileDialog").addEventListener("click", closeProfileDialog);
+$("#profileDialog").addEventListener("click", (event) => {
+  if (event.target.id === "profileDialog") closeProfileDialog();
+});
 $("#resetVenueForm").addEventListener("click", resetVenueFormState);
 $("#refreshAuth").addEventListener("click", () => loadAuthView().catch((error) => toast(error.message)));
 $("#refreshMine").addEventListener("click", () => loadMine().catch((error) => toast(error.message)));

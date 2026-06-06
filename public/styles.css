@@ -264,6 +264,82 @@ nav {
   color: var(--bad);
 }
 
+.profile-card {
+  display: grid;
+  gap: 16px;
+}
+
+.profile-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.profile-field {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  background: #fff;
+}
+
+.profile-field span {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.profile-field strong {
+  font-size: 18px;
+}
+
+.auth-status-button {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.auth-status-button:hover {
+  background: transparent;
+}
+
+.tag-list,
+.tag-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid #c7d2fe;
+  background: #eef2ff;
+  color: #3730a3;
+  font-size: 13px;
+}
+
+.tag-button {
+  color: #3730a3;
+  border-color: #c7d2fe;
+  background: #eef2ff;
+}
+
+.tag-button:hover {
+  background: #dbeafe;
+}
+
+.dialog-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
 .actions {
   display: flex;
   flex-wrap: wrap;
@@ -371,6 +447,34 @@ nav {
 .toast.show {
   opacity: 1;
   transform: translateY(0);
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgb(15 23 42 / 45%);
+  z-index: 10;
+}
+
+.modal-backdrop[hidden] {
+  display: none;
+}
+
+.modal {
+  width: min(680px, 100%);
+  max-height: calc(100vh - 36px);
+  overflow: auto;
+  border-radius: 8px;
+  background: #fff;
+  padding: 18px;
+  box-shadow: 0 20px 60px rgb(15 23 42 / 28%);
+}
+
+.modal h3 {
+  margin: 0;
 }
 
 @media (max-width: 860px) {

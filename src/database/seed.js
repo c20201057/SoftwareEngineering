@@ -5,7 +5,7 @@ function createSeedData() {
   return {
     users: [
       {
-        id: "u1",
+        id: "11001",
         student_no: "2314007",
         name: "李佳璞",
         nickname: "Jiapu",
@@ -25,7 +25,7 @@ function createSeedData() {
         created_at: now,
       },
       {
-        id: "u2",
+        id: "11002",
         student_no: "2313983",
         name: "刘砚桐",
         nickname: "YanTong",
@@ -45,7 +45,7 @@ function createSeedData() {
         created_at: now,
       },
       {
-        id: "u3",
+        id: "11003",
         student_no: "2313828",
         name: "苏雨辰",
         nickname: "Yuchen",
@@ -65,12 +65,12 @@ function createSeedData() {
         created_at: now,
       },
       {
-        id: "u4",
+        id: "11004",
         student_no: "2312194",
         name: "朱乐晨",
         nickname: "Lechen",
         role: "student",
-        auth_status: "verified",
+        auth_status: "unverified",
         credit_score: 92,
         status: "active",
         tags: ["剧本杀", "硬核"],
@@ -81,11 +81,11 @@ function createSeedData() {
         auth_submission_note: "已通过历史导入认证",
         auth_submitted_at: now,
         auth_review_reason: "",
-        auth_reviewed_at: now,
+        auth_reviewed_at: null,
         created_at: now,
       },
       {
-        id: "admin1",
+        id: "10001",
         student_no: "2311987",
         name: "史傅冠华",
         nickname: "系统管理员",
@@ -105,7 +105,7 @@ function createSeedData() {
         created_at: now,
       },
       {
-        id: "venue1",
+        id: "10002",
         student_no: "venue001",
         name: "场地管理员",
         nickname: "社团空间管理员",
@@ -166,7 +166,7 @@ function createSeedData() {
     game_sessions: [
       {
         id: "s1",
-        host_id: "u1",
+        host_id: "11001",
         game_id: "g1",
         title: "周五晚阿瓦隆缺三人",
         description: "新老玩家都可，要求准时到场，现场讲规则。",
@@ -183,7 +183,7 @@ function createSeedData() {
       },
       {
         id: "s2",
-        host_id: "u2",
+        host_id: "11002",
         game_id: "g2",
         title: "卡坦岛新手教学局",
         description: "已有一套实体桌游，欢迎没玩过的同学。",
@@ -204,7 +204,7 @@ function createSeedData() {
       {
         id: "m1",
         session_id: "s1",
-        user_id: "u1",
+        user_id: "11001",
         member_role: "host",
         join_time: now,
         checkin_status: "pending",
@@ -212,7 +212,7 @@ function createSeedData() {
       {
         id: "m2",
         session_id: "s2",
-        user_id: "u2",
+        user_id: "11002",
         member_role: "host",
         join_time: now,
         checkin_status: "pending",
@@ -224,7 +224,7 @@ function createSeedData() {
         name: "学生活动中心 302",
         location: "学生活动中心三楼",
         capacity: 12,
-        manager_id: "venue1",
+        manager_id: "10002",
         available_time: "周一至周日 09:00-22:30",
         open_rules: "需提前一天申请；剧本杀需保持安静并恢复桌椅。",
         status: "active",
@@ -235,7 +235,7 @@ function createSeedData() {
         name: "社团活动室 B201",
         location: "大学生活动中心 B 区二楼",
         capacity: 8,
-        manager_id: "venue1",
+        manager_id: "10002",
         available_time: "周五 18:00-22:30；周末 09:00-22:30",
         open_rules: "考试周暂停预约。",
         status: "active",

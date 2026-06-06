@@ -103,7 +103,7 @@ test("verified student can publish with selected venue and host can approve appl
 
     const detail = await request(ctx.baseUrl, "GET", `/api/sessions/${sessionId}`, undefined, hostToken);
     assert.equal(detail.payload.data.current_members, 2);
-    assert.equal(detail.payload.data.members.some((member) => member.user_id === "u2"), true);
+    assert.equal(detail.payload.data.members.some((member) => member.user_id === "11002"), true);
   } finally {
     await ctx.close();
   }
@@ -162,7 +162,7 @@ test("student can submit auth request and admin approval unlocks join flow", asy
     const review = await request(
       ctx.baseUrl,
       "PATCH",
-      "/api/users/u3/auth",
+      "/api/users/11003/auth",
       { action: "approve", reason: "信息校验通过" },
       adminToken,
     );
@@ -404,7 +404,7 @@ test("admin handles complaint and credit score changes", async () => {
       "/api/complaints",
       {
         session_id: sessionId,
-        target_user_id: "u1",
+        target_user_id: "11001",
         reason: "活动描述不清晰",
         evidence: "测试证据",
       },
