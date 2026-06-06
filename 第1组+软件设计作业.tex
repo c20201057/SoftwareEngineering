@@ -119,9 +119,9 @@
     \toprule
     用户域 & 核心功能 & 设计说明 \\
     \midrule
-    普通学生 & 浏览/筛选组局、查看详情、申请加入、退出、互评、投诉、个人资料与信用记录 & 未认证用户只能浏览公开信息；认证后才能参与影响活动与信用的操作。 \\
+    普通学生 & 浏览/筛选组局、查看详情、申请加入、退出、互评、投诉、个人资料（含头像与标签）、信用记录、实名认证提交 & 未认证用户只能浏览公开信息；认证后才能参与影响活动与信用的操作；可通过个人主页编辑头像、昵称、标签等。 \\
     发起人 & 发布组局、编辑组局、审核报名、取消组局、发起场地申请 & 发起人是普通学生在特定组局中的业务角色，权限限定在自己创建的组局。 \\
-    系统管理员 & 实名认证审核、账号状态、游戏库、违规内容、投诉与信用、通知、日志统计 & 后台接口统一走角色鉴权，所有关键操作写入管理员操作日志。 \\
+    系统管理员 & 实名认证审核、账号状态管理、用户列表查看、游戏库、违规内容、投诉与信用、通知、日志统计 & 后台接口统一走角色鉴权，所有关键操作写入管理员操作日志；可查看全部用户列表并对用户进行认证审核与账号状态变更。 \\
     场地管理员 & 场地信息、开放时段、预约审核、占用记录、场地通知 & 只能处理被授权管理的场地，审核结果同步影响组局场地状态。 \\
     外部系统 & 学校统一身份认证、通知推送、日志监控 & 当前原型采用模拟适配器；部署阶段替换为真实接口。 \\
     \bottomrule
@@ -186,7 +186,7 @@
   模块 & 主要职责 & 输入/输出 & 关键规则 \\
   \midrule
   \endhead
-  Auth/User & 登录、当前用户、个人资料、实名认证状态、角色与账号状态 & 输入学号或用户编号；输出用户视图与权限 & 未认证用户不可发布、报名、评价、投诉；敏感字段脱敏。 \\
+  Auth/User & 登录、当前用户、个人资料（含头像编辑）、实名认证提交与管理员审核、用户列表管理、角色与账号状态变更 & 输入学号或用户编号；输出用户视图（含头像URL、认证提交信息、权限） & 未认证用户不可发布、报名、评价、投诉；学号和联系方式仅本人和管理员可见；头像限定预设选项。 \\
   GameLib & 维护桌游/剧本库，供发布和筛选使用 & 游戏名称、类型、人数、时长、难度、标签 & 下架条目不可被新组局选择。 \\
   Session & 组局发布、列表筛选、详情、编辑、取消、完结 & 活动时间、地点、人数、信用要求、加入方式 & 时间必须合法；名额不得超上限；关键变更发通知。 \\
   Application/Member & 报名申请、发起人审核、退出、成员名单、签到状态 & 申请备注、审核动作、退出原因 & 审核制先进入待审核；直接加入走容量和冲突校验。 \\
@@ -208,11 +208,12 @@
     \toprule
     入口操作 & 主服务 & 协作服务 & 数据实体 \\
     \midrule
-    发布组局 & SessionService & GameLibService、NotificationService、LogService & game\_sessions、session\_members、notifications、admin\_logs \\
-    申请加入 & ApplicationService & SessionService、CreditService、NotificationService & session\_applications、session\_members、credit\_records \\
+    发布组局 & SessionService & GameLibService、VenueService、NotificationService、LogService & game\_sessions、session\_members、venue\_reservations、notifications、admin\_logs \\
+    申请加入 & SessionService & UserService、CreditService、NotificationService & session\_applications、session\_members、credit\_records \\
     场地审核 & VenueService & SessionService、NotificationService、LogService & venue\_reservations、venues、game\_sessions \\
     处理投诉 & ComplaintService & CreditService、NotificationService、LogService & complaints、credit\_records、notifications、admin\_logs \\
     实名认证审核 & UserService & ExternalAuthAdapter、NotificationService、LogService & users、notifications、admin\_logs \\
+    实名认证提交 & UserService & — & users \\
     \bottomrule
   \end{tabularx}
   \caption{模块调用关系}
@@ -220,7 +221,9 @@
 
 \subsection{核心业务流程设计}
 
-发布组局流程：用户认证通过后进入发布页面，选择游戏库条目并填写标题、人数、时间、地点、加入方式和最低信用分。系统校验时间、人数、游戏状态和当日发布频率，保存组局并将发起人写入成员表。如选择校内场地，后续需要单独提交场地预约申请。
+发布组局流程：用户认证通过后进入发布页面，选择游戏库条目并填写标题、人数、时间、场地、加入方式和最低信用分。系统校验时间合法性、人数范围、游戏状态和场地容量与时间冲突；场地选择为必填项，发布组局时自动创建已通过的场地预约记录（venue\_status 置为 approved），组局地点字段自动由场地信息生成。保存组局后将发起人写入成员表。后续发起人仍可通过编辑组局更换场地或调整时间，系统自动同步场地预约。
+
+实名认证流程：学生进入个人主页，填写真实姓名、学号和联系方式提交认证申请，auth\_status 变为 pending。管理员在后台用户列表中查看待审核用户及其提交信息，选择通过（approve）或驳回（reject）并填写审核意见。通过后用户 auth\_status 变为 verified，获得发布、报名、评价等操作权限；驳回后用户可修改信息重新提交。审核结果通过通知模块反馈给申请人。
 
 报名与成员审核流程：学生提交申请后，系统检查认证状态、账号状态、信用分、组局状态、名额、重复报名和时间冲突。直接加入模式立即生成成员；审核制生成待审核申请，由发起人通过或拒绝。所有结果通过通知模块反馈。
 
@@ -232,7 +235,8 @@
 
 \subsection{接口设计}
 
-\begin{longtable}{P{1.5cm} P{5.0cm} P{3.0cm} P{6.0cm}}
+\begin{longtable}{P{2.6cm} P{5.4cm} P{2.2cm} P{5.8cm}}
+  \small
   \toprule
   方法 & 路径 & 角色 & 说明 \\
   \midrule
@@ -243,18 +247,29 @@
   \endhead
   GET & \texttt{/api/health} & 公开 & 健康检查与版本信息 \\
   POST & \texttt{/api/auth/login} & 公开 & 使用学号/角色演示登录，返回用户视图 \\
-  GET/PUT & \texttt{/api/users/me} & 登录用户 & 查看或维护个人资料 \\
+  GET & \texttt{/api/users/me} & 登录用户 & 查看个人资料与权限 \\
+  PUT & \texttt{/api/users/me} & 登录用户 & 编辑个人资料（昵称、头像、标签、联系方式） \\
+  POST & \texttt{/api/users/me/auth} & 学生 & 提交实名认证申请（真实姓名、学号、联系方式） \\
   GET & \texttt{/api/users/me/credit} & 登录用户 & 查看个人信用分与信用流水 \\
-  GET/POST & \texttt{/api/games} & 公开/管理员 & 查询游戏库；管理员新增游戏 \\
-  GET/POST & \texttt{/api/sessions} & 公开/认证学生 & 筛选组局；发布组局 \\
-  GET/PATCH & \texttt{/api/sessions/:id} & 公开/发起人 & 查看详情；发起人编辑组局 \\
-  POST & \texttt{/api/sessions/:id/applications} & 认证学生 & 申请加入组局或直接加入 \\
+  GET & \texttt{/api/users} & 管理员 & 查看全部用户列表 \\
+  PATCH & \texttt{/api/users/:id/auth} & 管理员 & 审核用户实名认证（通过/驳回） \\
+  PATCH & \texttt{/api/users/:id/status} & 管理员 & 变更用户账号状态（active/muted/limited/banned） \\
+  GET\allowbreak/\allowbreak POST & \texttt{/api/games} & 公开\allowbreak/\allowbreak 管理员 & 查询游戏库；管理员新增游戏 \\
+  PATCH & \texttt{/api/games/:id} & 管理员 & 更新游戏条目信息 \\
+  GET\allowbreak/\allowbreak POST & \texttt{/api/sessions} & 公开\allowbreak/\allowbreak 认证学生 & 筛选组局；发布组局（必选场地） \\
+  GET & \texttt{/api/sessions/mine} & 登录用户 & 查看我发布或参与的组局 \\
+  GET\allowbreak/\allowbreak PATCH & \texttt{/api/sessions/:id} & 公开\allowbreak/\allowbreak 发起人 & 查看详情（含场地与成员信息）；发起人编辑组局 \\
+  POST & \texttt{/api/sessions/\allowbreak :id/\allowbreak applications} & 认证学生 & 申请加入组局或直接加入 \\
   PATCH & \texttt{/api/applications/:id} & 发起人 & 通过/拒绝报名申请 \\
   POST & \texttt{/api/sessions/:id/leave} & 成员 & 退出组局并按规则记录信用影响 \\
+  POST & \texttt{/api/sessions/:id/cancel} & 发起人 & 取消组局 \\
+  POST & \texttt{/api/sessions/:id/finish} & 发起人 & 结束组局 \\
   POST & \texttt{/api/sessions/:id/reviews} & 成员 & 活动结束后互评 \\
-  GET/POST/PATCH & \texttt{/api/complaints} & 学生/管理员 & 提交、查询、处理投诉 \\
-  GET/POST/PATCH & \texttt{/api/venue-reservations} & 发起人/场地管理员 & 提交、查询、审核场地预约 \\
-  GET/PATCH & \texttt{/api/notifications} & 登录用户 & 查看通知与标记已读 \\
+  GET\allowbreak/\allowbreak POST\allowbreak/\allowbreak PATCH & \texttt{/api/complaints} & 学生\allowbreak/\allowbreak 管理员 & 提交、查询、处理投诉 \\
+  GET\allowbreak/\allowbreak POST & \texttt{/api/venues} & 场地管理员 & 查询场地列表；新增场地 \\
+  GET\allowbreak/\allowbreak PATCH\allowbreak/\allowbreak DELETE & \texttt{/api/venues/:id} & 场地管理员 & 查看、编辑、删除场地（删除时级联取消关联组局） \\
+  GET\allowbreak/\allowbreak POST\allowbreak/\allowbreak PATCH & \texttt{/api/venue-reservations} & 发起人\allowbreak/\allowbreak 场地管理员 & 提交、查询、审核场地预约 \\
+  GET\allowbreak/\allowbreak PATCH & \texttt{/api/notifications} & 登录用户 & 查看通知与标记已读 \\
   GET & \texttt{/api/admin/logs} & 管理员 & 查看操作日志 \\
   GET & \texttt{/api/admin/stats} & 管理员 & 查看平台统计 \\
   \bottomrule
@@ -306,9 +321,9 @@
   表名 & 关键字段 & 主键/外键 & 说明 \\
   \midrule
   \endhead
-  users & id, student\_no, name, nickname, role, auth\_status, credit\_score, status, tags, contact & PK id；UNIQUE student\_no & 用户、管理员与场地管理员统一建模，通过 role 区分权限。 \\
+  users & id, student\_no, name, nickname, role, auth\_status, credit\_score, status, avatar, tags, contact, auth\_submission\_name, auth\_submission\_student\_no, auth\_submission\_contact, auth\_submission\_note, auth\_submitted\_at, auth\_review\_reason, auth\_reviewed\_at, status\_reason & PK id；UNIQUE student\_no & 用户、管理员与场地管理员统一建模，通过 role 区分权限。ID 采用 5 位数字编码：10001--11000 为管理员，11001--99999 为普通用户。avatar 存储头像文件名，auth\_submission 系列字段支持实名认证提交流程。 \\
   game\_libs & id, name, type, min\_players, max\_players, duration\_minutes, difficulty, description, tags, status & PK id & 桌游/剧本库，供发布组局和筛选使用。 \\
-  game\_sessions & id, host\_id, game\_id, title, start\_time, end\_time, location, max\_members, current\_members, join\_mode, status & PK id；FK host\_id；FK game\_id & 一次具体组局活动。 \\
+  game\_sessions & id, host\_id, game\_id, title, description, start\_time, end\_time, location, max\_members, current\_members, min\_credit\_required, join\_mode, status, venue\_status, cancel\_reason & PK id；FK host\_id；FK game\_id & 一次具体组局活动。venue\_status 记录场地预约状态，cancel\_reason 记录取消原因。 \\
   session\_applications & id, session\_id, applicant\_id, message, status, apply\_time, review\_time, review\_reason & PK id；FK session\_id；FK applicant\_id & 审核制报名申请与直接加入记录。 \\
   session\_members & id, session\_id, user\_id, member\_role, join\_time, checkin\_status & PK id；FK session\_id；FK user\_id；UNIQUE(session\_id,user\_id) & 已加入成员名单。 \\
   venues & id, name, location, capacity, manager\_id, available\_time, open\_rules, status, description & PK id；FK manager\_id & 校园场地基础数据与开放规则。 \\
@@ -399,11 +414,12 @@
     \toprule
     报告模块 & 代码实现 & 验收方式 \\
     \midrule
-    接口/控制层 & \texttt{src/server.js}, \texttt{src/router.js} & 访问 \texttt{/api/health}，使用前端或测试脚本调用核心接口。 \\
-    业务服务层 & \texttt{src/services/sessionService.js}, \texttt{venueService.js}, \texttt{complaintService.js} 等 & 通过 \texttt{node --test} 覆盖报名、审核、场地冲突、投诉信用变更。 \\
-    数据访问层 & \texttt{src/database/jsonStore.js} 与 \texttt{data/*.json} & 重启后数据不丢失；删除 data 文件可重新种子初始化。 \\
-    数据库设计 & \texttt{database/schema.sql} & 检查表、索引、外键与本报告字段一致。 \\
-    前端演示 & \texttt{public/index.html}, \texttt{public/app.js}, \texttt{public/styles.css} & 浏览器打开本地服务即可完成学生/管理员/场地管理员流程。 \\
+    接口/控制层 & \texttt{src/server.js}, \texttt{src/router.js} & 访问 \texttt{/api/health}，使用前端或测试脚本调用核心接口。含头像静态资源路由 \texttt{/profile\_photo/}。 \\
+    业务服务层 & \texttt{src/services/userService.js}, \texttt{sessionService.js}, \texttt{venueService.js}, \texttt{complaintService.js} 等 & 通过 \texttt{node --test} 覆盖登录、认证提交与审核、发布（含场地绑定）、报名、审核、场地冲突、投诉信用变更。 \\
+    数据访问层 & \texttt{src/database/jsonStore.js}, \texttt{src/database/seed.js} 与 \texttt{data/*.json} & 重启后数据不丢失；seed.js 预置 6 个用户（含头像、认证状态）、2 个场地、3 款游戏和 2 条组局示例。 \\
+    数据库设计 & \texttt{database/schema.sql} & 检查表、索引、外键与本报告字段一致；users 表含 avatar 与 auth\_submission 系列字段。 \\
+    前端演示 & \texttt{public/index.html}, \texttt{public/app.js}, \texttt{public/styles.css} & 浏览器打开本地服务即可完成学生个人主页编辑、实名认证提交、管理员审核、场地选择发布组局、参与者详情查看等完整流程。 \\
+    静态资源 & \texttt{data/profile\_photo/}（12 张头像图片） & 头像通过 \texttt{/profile\_photo/文件名} 访问，支持 default、adm、1--10 共 12 个选项。 \\
     \bottomrule
   \end{tabularx}
   \caption{设计与实现映射}
@@ -421,8 +437,8 @@
     \toprule
     阶段 & 内容 & 完成标准 \\
     \midrule
-    单元/接口测试 & 健康检查、登录、筛选、发布、申请、审核、退出、投诉、场地审核 & \texttt{npm test} 全部通过。 \\
-    业务验收 & 学生端完成“浏览--报名--评价/投诉”；管理员端完成“认证/投诉/内容库”；场地端完成“预约审核”。 & 前端页面可演示，数据持久化可追溯。 \\
+    单元/接口测试 & 健康检查、登录、筛选、发布（含场地绑定）、申请、审核、退出、取消/完结、投诉、实名认证提交与审核、场地审核与删除 & \texttt{npm test} 全部通过。 \\
+    业务验收 & 学生端完成“编辑个人主页--实名认证提交--浏览--报名--评价/投诉”；管理员端完成“认证审核/用户列表/投诉/内容库”；场地端完成“场地管理/预约审核”。 & 前端页面可演示，头像上传与展示、ID 分配方案、数据持久化可追溯。 \\
     性能检查 & 构造列表筛选和连续报名请求 & 关键接口在本地 3 秒内响应，无超额报名。 \\
     安全检查 & 未登录、未认证、越权账号分别调用写接口 & 返回 401/403，不修改数据。 \\
     提交 & 报告源码、图片、PDF、源码、README、schema.sql、测试 & 推送到 GitHub main 分支。 \\
