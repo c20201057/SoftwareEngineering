@@ -530,6 +530,31 @@ nav {
   font-size: 13px;
 }
 
+/* 平台统计面板 */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.stat-item {
+  background: var(--soft);
+  border-radius: 8px;
+  padding: 10px 8px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.stat-num {
+  display: block;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 2px;
+}
+
 .notification-head {
   display: flex;
   align-items: flex-start;

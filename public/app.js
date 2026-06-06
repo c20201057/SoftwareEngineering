@@ -1043,6 +1043,26 @@ async function handleComplaint(id, action) {
   await loadComplaints();
 }
 
+function renderStats(stats) {
+  const games = (stats.popular_games || []).map((g) => `<span>${g.name}(${g.count}次)</span>`).join(" ");
+  return `
+    <div class="stats-grid">
+      <div class="stat-item"><span class="stat-num">${stats.users}</span>总用户</div>
+      <div class="stat-item"><span class="stat-num">${stats.verified_users}</span>已认证</div>
+      <div class="stat-item"><span class="stat-num">${stats.sessions}</span>组局总数</div>
+      <div class="stat-item"><span class="stat-num">${stats.recruiting_sessions}</span>招募中</div>
+      <div class="stat-item"><span class="stat-num">${stats.finished_sessions}</span>已完结</div>
+      <div class="stat-item"><span class="stat-num">${stats.applications}</span>报名申请</div>
+      <div class="stat-item"><span class="stat-num">${stats.complaints}</span>投诉总数</div>
+      <div class="stat-item"><span class="stat-num">${stats.pending_complaints}</span>待处理</div>
+      <div class="stat-item"><span class="stat-num">${stats.credit_changes}</span>信用变更</div>
+      <div class="stat-item"><span class="stat-num">${stats.venue_reservations}</span>场地预约</div>
+      <div class="stat-item"><span class="stat-num">${stats.pending_venue_reservations}</span>待审核预约</div>
+    </div>
+    <p class="meta">热门游戏：${games || "暂无数据"}</p>
+  `;
+}
+
 function renderAuthReviewList(users) {
   const panel = $("#authReviewList");
   if (!panel) return;
@@ -1082,11 +1102,11 @@ async function reviewUserAuth(userId, action) {
 async function loadAdmin() {
   try {
     const [stats, logs, users] = await Promise.all([api("/api/admin/stats"), api("/api/admin/logs"), api("/api/users")]);
-    $("#statsPanel").textContent = JSON.stringify(stats, null, 2);
+    $("#statsPanel").innerHTML = renderStats(stats);
     renderAuthReviewList(users);
     $("#logList").innerHTML = logs.map((log) => `<div class="card"><strong>${log.action}</strong><p>${log.object_type}:${log.object_id} · ${log.result}</p><p class="meta">${fmtTime(log.created_at)}</p></div>`).join("") || "<p class='meta'>暂无日志</p>";
   } catch (error) {
-    $("#statsPanel").textContent = error.message;
+    $("#statsPanel").innerHTML = `<p class="meta">加载失败：${error.message}</p>`;
     $("#authReviewList").innerHTML = "";
     $("#logList").innerHTML = "";
   }
