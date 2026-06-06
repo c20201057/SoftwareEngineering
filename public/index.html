@@ -220,6 +220,11 @@
           <button type="button" class="secondary" id="closeProfileDialog">关闭</button>
         </div>
         <form id="profileEditForm" class="form-grid">
+          <input type="hidden" name="avatar" />
+          <div class="wide profile-edit-avatar-row">
+            <img id="profileEditAvatar" class="avatar-preview" alt="当前头像" />
+            <button type="button" class="secondary" id="changeAvatarBtn">修改头像</button>
+          </div>
           <label>昵称<input name="nickname" required maxlength="30" /></label>
           <label>联系方式<input name="contact" placeholder="手机号 / 邮箱" /></label>
           <label class="wide">个人偏好标签（用 ， 隔开）<input name="tags" placeholder="用逗号分隔，如 推理, 策略" /></label>
@@ -233,6 +238,31 @@
           </div>
           <button class="wide" type="submit">保存修改</button>
         </form>
+      </div>
+    </div>
+    <div class="modal-backdrop" id="avatarDialog" hidden>
+      <div class="modal avatar-modal" role="dialog" aria-modal="true" aria-labelledby="avatarDialogTitle">
+        <div class="section-head">
+          <h3 id="avatarDialogTitle">修改头像</h3>
+          <button type="button" class="secondary" id="closeAvatarDialog">取消</button>
+        </div>
+        <div>
+          <p class="hint">系统推荐头像</p>
+          <div id="avatarOptions" class="avatar-options"></div>
+        </div>
+        <div class="actions">
+          <button type="button" class="secondary" id="uploadAvatarBtn">从本地上传</button>
+          <button type="button" class="secondary" id="cancelAvatarDialog">取消</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-backdrop" id="memberProfileDialog" hidden>
+      <div class="modal member-profile-modal" role="dialog" aria-modal="true" aria-labelledby="memberProfileTitle">
+        <div class="section-head">
+          <h3 id="memberProfileTitle">成员主页</h3>
+          <button type="button" class="secondary" id="closeMemberProfileDialog">关闭</button>
+        </div>
+        <div id="memberProfileContent"></div>
       </div>
     </div>
     <script src="/app.js"></script>

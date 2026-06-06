@@ -23,6 +23,13 @@ function createHandler(app) {
         await handleApi(app, req, res, url);
         return;
       }
+      if (url.pathname.startsWith("/profile_photo/")) {
+        serveStatic(path.join(app.rootDir, "data", "profile_photo"), req, res, {
+          ...url,
+          pathname: url.pathname.replace(/^\/profile_photo\//, "/"),
+        });
+        return;
+      }
       serveStatic(app.publicDir, req, res, url);
     } catch (error) {
       handleError(res, error);

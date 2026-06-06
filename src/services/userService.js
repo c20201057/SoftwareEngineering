@@ -1,6 +1,21 @@
 const { badRequest, conflict, forbidden, notFound, unauthorized } = require("../errors");
 const { maskStudentNo, normalizeText, nowIso } = require("../utils");
 
+const AVATAR_OPTIONS = new Set([
+  "default.png",
+  "adm.png",
+  "1.png",
+  "2.png",
+  "3.png",
+  "4.png",
+  "5.png",
+  "6.png",
+  "7.png",
+  "8.png",
+  "9.png",
+  "10.png",
+]);
+
 class UserService {
   constructor(store) {
     this.store = store;
@@ -19,6 +34,7 @@ class UserService {
       auth_status: user.auth_status,
       credit_score: user.credit_score,
       status: user.status,
+      avatar: user.avatar || "default.png",
       tags: user.tags || [],
       student_no: canViewAuth ? user.student_no : maskStudentNo(user.student_no),
       contact: canViewAuth ? user.contact : undefined,
@@ -74,10 +90,13 @@ class UserService {
       ? payload.tags.map(normalizeText).filter(Boolean).slice(0, 8)
       : user.tags || [];
     const contact = normalizeText(payload.contact ?? user.contact);
+    const avatar = normalizeText(payload.avatar ?? user.avatar ?? "default.png");
+    if (!AVATAR_OPTIONS.has(avatar)) throw badRequest("头像选项不存在");
     const updated = this.store.update("users", user.id, {
       nickname,
       tags,
       contact,
+      avatar,
       updated_at: nowIso(),
     });
     return this.publicUser(updated, updated);

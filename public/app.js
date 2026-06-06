@@ -5,6 +5,7 @@ const state = {
   games: [],
   venues: [],
   notifications: [],
+  currentSessionMembers: [],
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -174,10 +175,15 @@ function renderProfile() {
     return;
   }
   panel.innerHTML = `
-    <strong>${state.user.nickname}</strong><br>
-    角色：${state.user.role}<br>
-    认证：${state.user.auth_status}<br>
-    信用分：${state.user.credit_score}
+    <div class="sidebar-profile">
+      <img class="avatar" src="${avatarUrl(state.user.avatar)}" alt="用户头像" />
+      <div>
+        <strong>${escapeHtml(state.user.nickname)}</strong><br>
+        角色：${escapeHtml(roleText(state.user.role))}<br>
+        认证：${authStatusText(state.user.auth_status)}<br>
+        信用分：${state.user.credit_score}
+      </div>
+    </div>
   `;
 }
 
@@ -227,6 +233,12 @@ const RECOMMENDED_TAGS = [
   "女性角色偏好",
 ];
 
+const AVATAR_OPTIONS = ["1.png", "2.png", "3.png", "4.png", "5.png", "6.png", "7.png", "8.png", "9.png", "10.png"];
+
+function avatarUrl(avatar) {
+  return `/profile_photo/${encodeURIComponent(avatar || "default.png")}`;
+}
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -260,6 +272,60 @@ function renderTagList(tags) {
   return tags.map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join("");
 }
 
+function renderMemberTag(member) {
+  const user = member.user || {};
+  const nickname = user.nickname || user.name || member.user_id;
+  return `
+    <button type="button" class="member-tag" onclick="showMemberProfile('${escapeHtml(member.user_id)}')">
+      <img src="${avatarUrl(user.avatar)}" alt="${escapeHtml(nickname)} 的头像" />
+      <span>${escapeHtml(nickname)}</span>
+    </button>
+  `;
+}
+
+function showMemberProfile(userId) {
+  const member = state.currentSessionMembers.find((item) => item.user_id === userId);
+  const user = member?.user;
+  const dialog = $("#memberProfileDialog");
+  const content = $("#memberProfileContent");
+  if (!user || !dialog || !content) return;
+  content.innerHTML = `
+    <div class="member-profile-card">
+      <div class="member-profile-head">
+        <img class="avatar large" src="${avatarUrl(user.avatar)}" alt="${escapeHtml(user.nickname || user.id)} 的头像" />
+        <div>
+          <h3>${escapeHtml(user.nickname || user.name || user.id)}</h3>
+          <p class="hint">UID：${escapeHtml(user.id)}</p>
+        </div>
+      </div>
+      <div class="profile-summary">
+        <div class="profile-field">
+          <span>UID</span>
+          <strong>${escapeHtml(user.id)}</strong>
+        </div>
+        <div class="profile-field">
+          <span>昵称</span>
+          <strong>${escapeHtml(user.nickname || user.name || "未设置")}</strong>
+        </div>
+        <div class="profile-field">
+          <span>信用分</span>
+          <strong>${Number(user.credit_score || 0)}</strong>
+        </div>
+      </div>
+      <div>
+        <h3>偏好</h3>
+        <div class="tag-list">${renderTagList(uniqueTags(user.tags || []))}</div>
+      </div>
+    </div>
+  `;
+  dialog.hidden = false;
+}
+
+function closeMemberProfileDialog() {
+  const dialog = $("#memberProfileDialog");
+  if (dialog) dialog.hidden = true;
+}
+
 function renderAuthPanel() {
   const panel = $("#authPanel");
   if (!panel) return;
@@ -273,6 +339,13 @@ function renderAuthPanel() {
   const status = state.user.auth_status || "rejected";
   panel.innerHTML = `
     <div class="card profile-card">
+      <div class="profile-avatar-panel">
+        <img class="avatar large" src="${avatarUrl(state.user.avatar)}" alt="用户头像" />
+        <div>
+          <h3>头像</h3>
+          <p class="hint">当前使用的个人头像</p>
+        </div>
+      </div>
       <div class="profile-summary">
         <div class="profile-field">
           <span>UID</span>
@@ -328,6 +401,9 @@ function openProfileDialog() {
   form.nickname.value = state.user.nickname || "";
   form.contact.value = state.user.contact || "";
   form.tags.value = (state.user.tags || []).join(", ");
+  form.avatar.value = state.user.avatar || "default.png";
+  const preview = $("#profileEditAvatar");
+  if (preview) preview.src = avatarUrl(form.avatar.value);
   renderProfileDialogAuthStatus();
   renderRecommendedTags();
   dialog.hidden = false;
@@ -344,6 +420,44 @@ function renderRecommendedTags() {
   box.innerHTML = RECOMMENDED_TAGS
     .map((tag) => `<button type="button" class="tag-button" onclick="addRecommendedTag('${escapeHtml(tag)}')">${escapeHtml(tag)}</button>`)
     .join("");
+}
+
+function openAvatarDialog() {
+  renderAvatarOptions();
+  const dialog = $("#avatarDialog");
+  if (dialog) dialog.hidden = false;
+}
+
+function closeAvatarDialog() {
+  const dialog = $("#avatarDialog");
+  if (dialog) dialog.hidden = true;
+}
+
+function renderAvatarOptions() {
+  const box = $("#avatarOptions");
+  const form = $("#profileEditForm");
+  if (!box || !form) return;
+  const current = form.avatar.value || state.user?.avatar || "default.png";
+  box.innerHTML = AVATAR_OPTIONS
+    .map((avatar) => `
+      <button type="button" class="avatar-option ${avatar === current ? "active" : ""}" onclick="selectAvatar('${avatar}')">
+        <img src="${avatarUrl(avatar)}" alt="头像 ${avatar.replace(".png", "")}" />
+      </button>
+    `)
+    .join("");
+}
+
+function selectAvatar(avatar) {
+  const form = $("#profileEditForm");
+  const preview = $("#profileEditAvatar");
+  if (!form) return;
+  form.avatar.value = avatar;
+  if (preview) preview.src = avatarUrl(avatar);
+  closeAvatarDialog();
+}
+
+function showUploadUnavailable() {
+  toast("从本地上传暂未实现");
 }
 
 function renderProfileDialogAuthStatus() {
@@ -437,6 +551,7 @@ function renderSessionCard(session) {
 
 async function showSession(id) {
   const detail = await api(`/api/sessions/${id}`);
+  state.currentSessionMembers = detail.members || [];
   const locationText = formatSessionLocation(detail);
   const isMember = detail.members.some((member) => member.user_id === state.user?.id);
   const hasPendingApplication = detail.applications.some((item) => item.applicant_id === state.user?.id && item.status === "pending");
@@ -470,7 +585,7 @@ async function showSession(id) {
       <span class="badge">信用要求：${detail.min_credit_required}</span>
     </div>
     <h4>成员</h4>
-    <div class="stack">${detail.members.map((member) => `<div class="card">${member.user?.nickname || member.user_id} · ${member.member_role} · ${member.checkin_status}</div>`).join("")}</div>
+    <div class="member-tags">${detail.members.map(renderMemberTag).join("")}</div>
     ${userHint}
     ${actionButtons.length ? `<div class="actions">${actionButtons.join("")}</div>` : ""}
   `;
@@ -1005,6 +1120,8 @@ window.reviewUserAuth = reviewUserAuth;
 window.showAuthFeatureUnavailable = showAuthFeatureUnavailable;
 window.openProfileDialog = openProfileDialog;
 window.addRecommendedTag = addRecommendedTag;
+window.selectAvatar = selectAvatar;
+window.showMemberProfile = showMemberProfile;
 
 $("#loginBtn").addEventListener("click", () => login().catch((error) => toast(error.message)));
 $("#refreshSessions").addEventListener("click", () => loadSessions().catch((error) => toast(error.message)));
@@ -1018,6 +1135,17 @@ $("#closeEditSession").addEventListener("click", hideEditSessionPanel);
 $("#closeProfileDialog").addEventListener("click", closeProfileDialog);
 $("#profileDialog").addEventListener("click", (event) => {
   if (event.target.id === "profileDialog") closeProfileDialog();
+});
+$("#changeAvatarBtn").addEventListener("click", openAvatarDialog);
+$("#closeAvatarDialog").addEventListener("click", closeAvatarDialog);
+$("#cancelAvatarDialog").addEventListener("click", closeAvatarDialog);
+$("#uploadAvatarBtn").addEventListener("click", showUploadUnavailable);
+$("#avatarDialog").addEventListener("click", (event) => {
+  if (event.target.id === "avatarDialog") closeAvatarDialog();
+});
+$("#closeMemberProfileDialog").addEventListener("click", closeMemberProfileDialog);
+$("#memberProfileDialog").addEventListener("click", (event) => {
+  if (event.target.id === "memberProfileDialog") closeMemberProfileDialog();
 });
 $("#resetVenueForm").addEventListener("click", resetVenueFormState);
 $("#refreshAuth").addEventListener("click", () => loadAuthView().catch((error) => toast(error.message)));
