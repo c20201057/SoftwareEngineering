@@ -213,7 +213,6 @@ function createSeedData() {
         user_id: "11001",
         member_role: "host",
         join_time: now,
-        checkin_status: "pending",
       },
       {
         id: "m2",
@@ -221,7 +220,6 @@ function createSeedData() {
         user_id: "11002",
         member_role: "host",
         join_time: now,
-        checkin_status: "pending",
       },
     ],
     venues: [

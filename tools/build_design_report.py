@@ -171,7 +171,7 @@ digraph G {{
   GameLib [label="{{GameLib 游戏库|gameId: ID\\lname/type: String\\lminPlayers/maxPlayers: Number\\ldifficulty: String\\lstatus: String\\l}}"];
   GameSession [label="{{GameSession 组局|sessionId: ID\\lhostId: ID\\lgameId: ID\\ltitle/time/location\\lmaxMembers/currentMembers\\ljoinMode/status\\lminCreditRequired\\l|isRecruiting()\\lhasCapacity()\\l}}"];
   SessionApplication [label="{{SessionApplication 申请|applicationId: ID\\lsessionId/applicantId\\lmessage/status\\lapplyTime/reviewTime\\l}}"];
-  SessionMember [label="{{SessionMember 成员|memberId: ID\\lsessionId/userId\\lmemberRole\\ljoinTime\\lcheckinStatus\\l}}"];
+  SessionMember [label="{{SessionMember 成员|memberId: ID\\lsessionId/userId\\lmemberRole\\ljoinTime\\l}}"];
   Venue [label="{{Venue 场地|venueId: ID\\lname/location\\lcapacity/status\\lmanagerId\\lopenRules\\l}}"];
   VenueReservation [label="{{VenueReservation 预约|reservationId: ID\\lvenueId/sessionId\\lapplicantId/reviewerId\\ltimeRange/status\\lreviewReason\\l}}"];
   Review [label="{{Review 评价|reviewId: ID\\lsessionId\\lreviewerId/targetUserId\\lscore/content\\lcreatedAt\\l}}"];
@@ -568,7 +568,7 @@ def build_pdf():
         ["Auth/User", "登录、当前用户、个人资料、实名认证状态、角色与账号状态", "输入学号或用户编号；输出用户视图与权限", "未认证用户不可发布、报名、评价、投诉；敏感字段脱敏。"],
         ["GameLib", "维护桌游/剧本库，供发布和筛选使用", "游戏名称、类型、人数、时长、难度、标签", "下架条目不可被新组局选择。"],
         ["Session", "组局发布、列表筛选、详情、编辑、取消、完结", "活动时间、地点、人数、信用要求、加入方式", "时间必须合法；名额不得超上限；关键变更发通知。"],
-        ["Application/Member", "报名申请、发起人审核、退出、成员名单、签到状态", "申请备注、审核动作、退出原因", "审核制先进入待审核；直接加入走容量和冲突校验。"],
+        ["Application/Member", "报名申请、发起人审核、退出、成员名单", "申请备注、审核动作、退出原因", "审核制先进入待审核；直接加入走容量和冲突校验。"],
         ["Venue", "场地资源、开放时段、预约申请、审核、占用记录", "场地、时间、申请说明、审核意见", "容量、开放状态、时间冲突和管理权限必须校验。"],
         ["Review/Credit", "活动互评、信用分流水、跳车或投诉扣分", "评分、评价内容、信用变更原因", "仅实际成员可评价；信用变更必须有业务关联。"],
         ["Complaint", "投诉提交、受理、驳回/成立、处理结果", "投诉原因、证据、目标用户", "管理员处理后同步通知双方并写日志。"],
@@ -643,7 +643,7 @@ def build_pdf():
         ["game_libs", "id, name, type, min_players, max_players, duration_minutes, difficulty, description, tags, status", "PK id", "桌游/剧本库，供发布组局和筛选使用。"],
         ["game_sessions", "id, host_id, game_id, title, description, start_time, end_time, location, max_members, current_members, min_credit_required, join_mode, status", "PK id；FK host_id/users；FK game_id/game_libs", "一次具体组局活动。"],
         ["session_applications", "id, session_id, applicant_id, message, status, apply_time, review_time, review_reason", "PK id；FK session_id/game_sessions；FK applicant_id/users", "审核制报名申请与直接加入记录。"],
-        ["session_members", "id, session_id, user_id, member_role, join_time, checkin_status", "PK id；FK session_id/game_sessions；FK user_id/users；UNIQUE(session_id,user_id)", "已加入成员名单，包含发起人、参与者和 DM。"],
+        ["session_members", "id, session_id, user_id, member_role, join_time", "PK id；FK session_id/game_sessions；FK user_id/users；UNIQUE(session_id,user_id)", "已加入成员名单，包含发起人、参与者和 DM。"],
         ["venues", "id, name, location, capacity, manager_id, available_time, open_rules, status, description", "PK id；FK manager_id/users", "校园场地基础数据与开放规则。"],
         ["venue_reservations", "id, venue_id, session_id, applicant_id, reviewer_id, start_time, end_time, status, review_reason", "PK id；FK venue_id/venues；FK session_id/game_sessions；FK applicant_id/users", "场地预约审核记录。"],
         ["reviews", "id, session_id, reviewer_id, target_user_id, score, content, created_at", "PK id；FK session_id/game_sessions；FK reviewer/target users", "活动结束后互评。"],

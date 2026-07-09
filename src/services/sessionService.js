@@ -141,7 +141,6 @@ class SessionService {
       user_id: user.id,
       member_role: "host",
       join_time: nowIso(),
-      checkin_status: "pending",
     });
 
     this.venueService.upsertApprovedReservation(session, venue, user.id);
@@ -505,7 +504,6 @@ class SessionService {
       user_id: user.id,
       member_role: role,
       join_time: nowIso(),
-      checkin_status: "pending",
     });
     const nextCount = session.current_members + 1;
     this.store.update("game_sessions", session.id, {

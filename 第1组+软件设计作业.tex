@@ -189,7 +189,7 @@
   Auth/User & 登录、当前用户、个人资料（含头像编辑）、实名认证提交与管理员审核、用户列表管理、角色与账号状态变更 & 输入学号或用户编号；输出用户视图（含头像URL、认证提交信息、权限） & 未认证用户不可发布、报名、评价、投诉；学号和联系方式仅本人和管理员可见；头像限定预设选项。 \\
   GameLib & 维护桌游/剧本库，供发布和筛选使用 & 游戏名称、类型、人数、时长、难度、标签 & 下架条目不可被新组局选择。 \\
   Session & 组局发布、列表筛选、详情、编辑、取消、完结 & 活动时间、地点、人数、信用要求、加入方式 & 时间必须合法；名额不得超上限；关键变更发通知。 \\
-  Application/Member & 报名申请、发起人审核、退出、成员名单、签到状态 & 申请备注、审核动作、退出原因 & 审核制先进入待审核；直接加入走容量和冲突校验。 \\
+  Application/Member & 报名申请、发起人审核、退出、成员名单 & 申请备注、审核动作、退出原因 & 审核制先进入待审核；直接加入走容量和冲突校验。 \\
   Venue & 场地资源、开放时段、预约申请、审核、占用记录 & 场地、时间、申请说明、审核意见 & 容量、开放状态、时间冲突和管理权限必须校验。 \\
   Review/Credit & 活动互评、信用分流水、跳车或投诉扣分 & 评分、评价内容、信用变更原因 & 仅实际成员可评价；信用变更必须有业务关联。 \\
   Complaint & 投诉提交、受理、驳回/成立、处理结果 & 投诉原因、证据、目标用户 & 管理员处理后同步通知双方并写日志。 \\
@@ -325,7 +325,7 @@
   game\_libs & id, name, type, min\_players, max\_players, duration\_minutes, difficulty, description, tags, status & PK id & 桌游/剧本库，供发布组局和筛选使用。 \\
   game\_sessions & id, host\_id, game\_id, title, description, start\_time, end\_time, location, max\_members, current\_members, min\_credit\_required, join\_mode, status, venue\_status, cancel\_reason & PK id；FK host\_id；FK game\_id & 一次具体组局活动。venue\_status 记录场地预约状态，cancel\_reason 记录取消原因。 \\
   session\_applications & id, session\_id, applicant\_id, message, status, apply\_time, review\_time, review\_reason & PK id；FK session\_id；FK applicant\_id & 审核制报名申请与直接加入记录。 \\
-  session\_members & id, session\_id, user\_id, member\_role, join\_time, checkin\_status & PK id；FK session\_id；FK user\_id；UNIQUE(session\_id,user\_id) & 已加入成员名单。 \\
+  session\_members & id, session\_id, user\_id, member\_role, join\_time & PK id；FK session\_id；FK user\_id；UNIQUE(session\_id,user\_id) & 已加入成员名单。 \\
   venues & id, name, location, capacity, manager\_id, available\_time, open\_rules, status, description & PK id；FK manager\_id & 校园场地基础数据与开放规则。 \\
   venue\_reservations & id, venue\_id, session\_id, applicant\_id, reviewer\_id, start\_time, end\_time, status, review\_reason & PK id；FK venue\_id；FK session\_id；FK applicant\_id & 场地预约审核记录。 \\
   reviews & id, session\_id, reviewer\_id, target\_user\_id, score, content, created\_at & PK id；FK session\_id；FK reviewer/target & 活动结束后互评。 \\

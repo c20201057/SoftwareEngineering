@@ -7,7 +7,7 @@ digraph G {
   GameLib [label="{GameLib 游戏库|gameId: ID\lname/type: String\lminPlayers/maxPlayers: Number\ldifficulty: String\lstatus: String\l}"];
   GameSession [label="{GameSession 组局|sessionId: ID\lhostId: ID\lgameId: ID\ltitle/time/location\lmaxMembers/currentMembers\ljoinMode/status\lminCreditRequired\l|isRecruiting()\lhasCapacity()\l}"];
   SessionApplication [label="{SessionApplication 申请|applicationId: ID\lsessionId/applicantId\lmessage/status\lapplyTime/reviewTime\l}"];
-  SessionMember [label="{SessionMember 成员|memberId: ID\lsessionId/userId\lmemberRole\ljoinTime\lcheckinStatus\l}"];
+  SessionMember [label="{SessionMember 成员|memberId: ID\lsessionId/userId\lmemberRole\ljoinTime\l}"];
   Venue [label="{Venue 场地|venueId: ID\lname/location\lcapacity/status\lmanagerId\lopenRules\l}"];
   VenueReservation [label="{VenueReservation 预约|reservationId: ID\lvenueId/sessionId\lapplicantId/reviewerId\ltimeRange/status\lreviewReason\l}"];
   Review [label="{Review 评价|reviewId: ID\lsessionId\lreviewerId/targetUserId\lscore/content\lcreatedAt\l}"];
