@@ -11,22 +11,43 @@
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
+    <section id="authGate" class="auth-gate">
+      <div class="auth-card">
+        <div>
+          <h1>校缘聚 CampusGather</h1>
+          <p>使用昵称和密码登录校园桌游 / 剧本杀组局平台。</p>
+        </div>
+        <div class="auth-tabs" role="tablist" aria-label="登录与注册">
+          <button type="button" id="showLoginPanel" class="auth-tab active">登录</button>
+          <button type="button" id="showRegisterPanel" class="auth-tab">注册</button>
+        </div>
+        <form id="loginForm" class="auth-form">
+          <label>昵称<input name="nickname" autocomplete="username" required /></label>
+          <label>密码<input name="password" type="password" autocomplete="current-password" required /></label>
+          <button type="submit">登录</button>
+        </form>
+        <form id="registerForm" class="auth-form" hidden>
+          <label>昵称<input name="nickname" autocomplete="username" required /></label>
+          <label>密码<input name="password" type="password" autocomplete="new-password" required /></label>
+          <label>确认密码<input name="confirm_password" type="password" autocomplete="new-password" required /></label>
+          <p class="hint">注册后默认为未认证学生账号，昵称需 2-20 位；密码需 6-20 位，且至少包含字母和数字。</p>
+          <button type="submit">注册学生账号</button>
+        </form>
+      </div>
+    </section>
+
+    <div id="appShell" hidden>
     <header class="topbar">
       <div>
         <h1>校缘聚 CampusGather</h1>
         <p>校园桌游 / 剧本杀组局平台原型</p>
       </div>
-      <div class="login-panel">
-        <label for="account">演示账号</label>
-        <select id="account">
-          <option value="2314007">李佳璞 / 学生 / 已认证</option>
-          <option value="2313983">刘砚桐 / 学生 / 已认证</option>
-          <option value="2313828">苏雨辰 / 学生 / 待认证</option>
-          <option value="2312194">朱乐晨 / 学生 / 暂未认证</option>
-          <option value="2311987">史傅冠华 / 系统管理员</option>
-          <option value="venue001">场地管理员</option>
-        </select>
-        <button id="loginBtn">登录</button>
+      <div class="session-panel">
+        <div>
+          <strong id="topbarUserName">未登录</strong>
+          <span id="topbarUserRole">访客</span>
+        </div>
+        <button id="logoutBtn" class="secondary" type="button">退出登录</button>
       </div>
     </header>
 
@@ -250,6 +271,7 @@
         </section>
       </section>
     </main>
+    </div>
 
     <div class="toast" id="toast"></div>
     <div class="modal-backdrop" id="profileDialog" hidden>

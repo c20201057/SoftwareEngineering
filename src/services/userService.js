@@ -2,6 +2,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { badRequest, conflict, forbidden, notFound, unauthorized } = require("../errors");
 const { ensureDir, maskStudentNo, normalizeText, nowIso } = require("../utils");
+const { DEFAULT_INITIAL_PASSWORD, hashPassword, verifyPassword } = require("../security/password");
 
 const AVATAR_OPTIONS = new Set([
   "default.png",
@@ -27,11 +28,14 @@ const AVATAR_UPLOAD_TYPES = new Map([
 
 const MAX_AVATAR_BYTES = 512 * 1024;
 const UPLOADED_AVATAR_PATTERN = /^uploads\/[A-Za-z0-9_-]+-\d+\.(png|jpg|jpeg|webp)$/;
+const NICKNAME_PATTERN = /^[\p{Script=Han}A-Za-z0-9_-]{2,20}$/u;
+const PASSWORD_PATTERN = /^(?=.*[A-Za-z])(?=.*\d)\S{6,20}$/;
 
 class UserService {
   constructor(store, profilePhotoDir = null) {
     this.store = store;
     this.profilePhotoDir = profilePhotoDir;
+    this.ensurePasswordHashes();
   }
 
   publicUser(user, viewer = null) {
@@ -76,15 +80,46 @@ class UserService {
     return this.store.get("users", id);
   }
 
-  login({ student_no, user_id }) {
-    let user = null;
-    if (user_id) {
-      user = this.store.get("users", user_id);
-    } else if (student_no) {
-      user = this.store.all("users").find((row) => row.student_no === student_no);
-    }
-    if (!user) throw unauthorized("账号不存在，请检查演示学号或用户编号");
+  login({ nickname, password }) {
+    const normalizedNickname = normalizeText(nickname);
+    this.validateNickname(normalizedNickname);
+    this.validatePassword(password);
+    const user = this.store.all("users").find((row) => row.nickname === normalizedNickname);
+    if (!user || !verifyPassword(password, user.password_hash)) throw unauthorized("昵称或密码错误");
     if (user.status === "banned") throw forbidden("账号已被封禁，无法登录");
+    return {
+      token: user.id,
+      user: this.publicUser(user, user),
+    };
+  }
+
+  register(payload) {
+    const nickname = normalizeText(payload.nickname);
+    const password = String(payload.password || "");
+    this.validateNickname(nickname);
+    this.validatePassword(password);
+    this.ensureNicknameAvailable(nickname);
+    const user = this.store.insert("users", {
+      student_no: "",
+      name: nickname,
+      nickname,
+      role: "student",
+      avatar: "default.png",
+      auth_status: "unverified",
+      credit_score: 100,
+      status: "active",
+      tags: [],
+      contact: "",
+      auth_submission_name: "",
+      auth_submission_student_no: "",
+      auth_submission_contact: "",
+      auth_submission_note: "",
+      auth_submitted_at: null,
+      auth_review_reason: "",
+      auth_reviewed_at: null,
+      password_hash: hashPassword(password),
+      created_at: nowIso(),
+    });
     return {
       token: user.id,
       user: this.publicUser(user, user),
@@ -99,7 +134,8 @@ class UserService {
   updateProfile(user, payload) {
     this.requireLogin(user);
     const nickname = normalizeText(payload.nickname ?? user.nickname);
-    if (!nickname || nickname.length > 30) throw badRequest("昵称不能为空且不能超过 30 个字符");
+    this.validateNickname(nickname);
+    this.ensureNicknameAvailable(nickname, user.id);
     const tags = Array.isArray(payload.tags)
       ? payload.tags.map(normalizeText).filter(Boolean).slice(0, 8)
       : user.tags || [];
@@ -232,6 +268,34 @@ class UserService {
       updated_at: nowIso(),
     });
     return this.publicUser(updated, viewer);
+  }
+
+  validateNickname(nickname) {
+    if (!NICKNAME_PATTERN.test(nickname)) {
+      throw badRequest("昵称需为 2-20 位中文、字母、数字、下划线或短横线");
+    }
+  }
+
+  validatePassword(password) {
+    if (!PASSWORD_PATTERN.test(String(password || ""))) {
+      throw badRequest("密码需为 6-20 位，不能包含空格，且至少包含字母和数字");
+    }
+  }
+
+  ensureNicknameAvailable(nickname, selfId = null) {
+    const exists = this.store.all("users").some((user) => user.nickname === nickname && user.id !== selfId);
+    if (exists) throw conflict("昵称已被使用");
+  }
+
+  ensurePasswordHashes() {
+    const users = this.store.all("users");
+    const missing = users.filter((user) => !user.password_hash);
+    for (const user of missing) {
+      this.store.update("users", user.id, {
+        password_hash: hashPassword(DEFAULT_INITIAL_PASSWORD),
+        updated_at: user.updated_at || nowIso(),
+      });
+    }
   }
 
   requireLogin(user) {

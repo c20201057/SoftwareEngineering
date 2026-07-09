@@ -1,4 +1,5 @@
 const { nowIso } = require("../utils");
+const { DEFAULT_INITIAL_PASSWORD, hashPassword } = require("../security/password");
 
 function createSeedData() {
   const now = nowIso();
@@ -23,6 +24,7 @@ function createSeedData() {
         auth_submitted_at: now,
         auth_review_reason: "",
         auth_reviewed_at: now,
+        password_hash: hashPassword(DEFAULT_INITIAL_PASSWORD),
         created_at: now,
       },
       {
@@ -44,6 +46,7 @@ function createSeedData() {
         auth_submitted_at: now,
         auth_review_reason: "",
         auth_reviewed_at: now,
+        password_hash: hashPassword(DEFAULT_INITIAL_PASSWORD),
         created_at: now,
       },
       {
@@ -65,6 +68,7 @@ function createSeedData() {
         auth_submitted_at: now,
         auth_review_reason: "",
         auth_reviewed_at: null,
+        password_hash: hashPassword(DEFAULT_INITIAL_PASSWORD),
         created_at: now,
       },
       {
@@ -86,6 +90,7 @@ function createSeedData() {
         auth_submitted_at: now,
         auth_review_reason: "",
         auth_reviewed_at: null,
+        password_hash: hashPassword(DEFAULT_INITIAL_PASSWORD),
         created_at: now,
       },
       {
@@ -107,6 +112,7 @@ function createSeedData() {
         auth_submitted_at: null,
         auth_review_reason: "",
         auth_reviewed_at: null,
+        password_hash: hashPassword(DEFAULT_INITIAL_PASSWORD),
         created_at: now,
       },
       {
@@ -128,6 +134,7 @@ function createSeedData() {
         auth_submitted_at: null,
         auth_review_reason: "",
         auth_reviewed_at: null,
+        password_hash: hashPassword(DEFAULT_INITIAL_PASSWORD),
         created_at: now,
       },
     ],

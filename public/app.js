@@ -155,22 +155,6 @@ function resetGameFormState() {
   $("#gameSubmitBtn").textContent = "新增游戏";
 }
 
-async function login() {
-  const studentNo = $("#account").value;
-  const data = await api("/api/auth/login", {
-    method: "POST",
-    body: { student_no: studentNo },
-  });
-  state.token = data.token;
-  state.user = data.user;
-  state.notifications = [];
-  localStorage.setItem("cg_token", state.token);
-  renderProfile();
-  renderNavigation();
-  await loadBootstrap();
-  toast(`已登录：${state.user.nickname}`);
-}
-
 async function loadMe() {
   if (!state.token) return;
   try {
@@ -1499,6 +1483,76 @@ function showView(name) {
   if (name === "admin") loadAdmin().catch((error) => toast(error.message));
 }
 
+function renderAuthGate() {
+  const authGate = $("#authGate");
+  const appShell = $("#appShell");
+  if (authGate) authGate.hidden = Boolean(state.user);
+  if (appShell) appShell.hidden = !state.user;
+  const name = $("#topbarUserName");
+  const role = $("#topbarUserRole");
+  if (name) name.textContent = state.user?.nickname || "未登录";
+  if (role) role.textContent = state.user ? roleText(state.user.role) : "访客";
+}
+
+function switchAuthPanel(mode) {
+  const isRegister = mode === "register";
+  $("#loginForm").hidden = isRegister;
+  $("#registerForm").hidden = !isRegister;
+  $("#showLoginPanel").classList.toggle("active", !isRegister);
+  $("#showRegisterPanel").classList.toggle("active", isRegister);
+}
+
+async function login(event) {
+  event.preventDefault();
+  const form = new FormData(event.currentTarget);
+  const data = await api("/api/auth/login", {
+    method: "POST",
+    body: Object.fromEntries(form.entries()),
+  });
+  state.token = data.token;
+  state.user = data.user;
+  state.notifications = [];
+  localStorage.setItem("cg_token", state.token);
+  renderAuthGate();
+  renderProfile();
+  renderNavigation();
+  await loadBootstrap();
+  toast(`已登录：${state.user.nickname}`);
+}
+
+async function register(event) {
+  event.preventDefault();
+  const form = new FormData(event.currentTarget);
+  const payload = Object.fromEntries(form.entries());
+  if (payload.password !== payload.confirm_password) throw new Error("两次输入的密码不一致");
+  delete payload.confirm_password;
+  const data = await api("/api/auth/register", {
+    method: "POST",
+    body: payload,
+  });
+  state.token = data.token;
+  state.user = data.user;
+  state.notifications = [];
+  localStorage.setItem("cg_token", state.token);
+  renderAuthGate();
+  renderProfile();
+  renderNavigation();
+  await loadBootstrap();
+  toast("注册成功，已进入未认证学生账号。");
+}
+
+function logout() {
+  state.token = "";
+  state.user = null;
+  state.notifications = [];
+  state.currentSessionMembers = [];
+  localStorage.removeItem("cg_token");
+  renderAuthGate();
+  renderProfile();
+  renderNavigation();
+  showView("sessions");
+}
+
 window.showSession = showSession;
 window.applySession = applySession;
 window.reviewApplication = reviewApplication;
@@ -1524,7 +1578,11 @@ window.addRecommendedTag = addRecommendedTag;
 window.selectAvatar = selectAvatar;
 window.showMemberProfile = showMemberProfile;
 
-$("#loginBtn").addEventListener("click", () => login().catch((error) => toast(error.message)));
+$("#loginForm").addEventListener("submit", (event) => login(event).catch((error) => toast(error.message)));
+$("#registerForm").addEventListener("submit", (event) => register(event).catch((error) => toast(error.message)));
+$("#showLoginPanel").addEventListener("click", () => switchAuthPanel("login"));
+$("#showRegisterPanel").addEventListener("click", () => switchAuthPanel("register"));
+$("#logoutBtn").addEventListener("click", logout);
 $("#refreshSessions").addEventListener("click", () => loadSessions().catch((error) => toast(error.message)));
 $("#typeFilter").addEventListener("change", () => loadSessions().catch((error) => toast(error.message)));
 $("#tagFilter").addEventListener("change", () => loadSessions().catch((error) => toast(error.message)));
@@ -1561,8 +1619,12 @@ $("#refreshAdmin").addEventListener("click", () => loadAdmin().catch((error) => 
 $$(".nav").forEach((button) => button.addEventListener("click", () => showView(button.dataset.view)));
 
 setDefaultTimes();
-renderNavigation();
+renderAuthGate();
 loadMe()
-  .then(loadBootstrap)
-  .catch(() => loadBootstrap())
+  .then(() => {
+    renderAuthGate();
+    if (!state.user) return null;
+    renderNavigation();
+    return loadBootstrap();
+  })
   .catch((error) => toast(error.message));

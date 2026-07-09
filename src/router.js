@@ -61,6 +61,11 @@ async function handleApi(app, req, res, url) {
     return;
   }
 
+  if (req.method === "POST" && route === "/auth/register") {
+    ok(res, services.userService.register(body), 201);
+    return;
+  }
+
   if (req.method === "GET" && route === "/users/me") {
     ok(res, services.userService.current(user));
     return;

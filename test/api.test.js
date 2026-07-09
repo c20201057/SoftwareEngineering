@@ -6,6 +6,16 @@ const test = require("node:test");
 const { createApp } = require("../src/app");
 const { createHandler } = require("../src/router");
 
+const LOGIN_NAMES = {
+  2314007: "Jiapu",
+  2313983: "YanTong",
+  2313828: "Yuchen",
+  2312194: "Lechen",
+  2311987: "系统管理员",
+  venue001: "社团空间管理员",
+};
+const DEFAULT_PASSWORD = "abc123456";
+
 async function createTestServer() {
   const dataDir = path.join(os.tmpdir(), `campus-gather-test-${Date.now()}-${Math.random().toString(16).slice(2)}`);
   const app = createApp({ dataDir, resetOnStart: true });
@@ -33,8 +43,9 @@ async function request(baseUrl, method, targetPath, body, token) {
   return { status: response.status, payload };
 }
 
-async function login(baseUrl, studentNo) {
-  const { payload } = await request(baseUrl, "POST", "/api/auth/login", { student_no: studentNo });
+async function login(baseUrl, account, password = DEFAULT_PASSWORD) {
+  const nickname = LOGIN_NAMES[account] || account;
+  const { payload } = await request(baseUrl, "POST", "/api/auth/login", { nickname, password });
   assert.equal(payload.success, true);
   return payload.data.token;
 }
@@ -61,6 +72,43 @@ test("health and public session list work", async () => {
     const sessions = await request(ctx.baseUrl, "GET", "/api/sessions");
     assert.equal(sessions.status, 200);
     assert.ok(sessions.payload.data.length >= 2);
+  } finally {
+    await ctx.close();
+  }
+});
+
+test("nickname password auth and student registration work", async () => {
+  const ctx = await createTestServer();
+  try {
+    const wrongPassword = await request(ctx.baseUrl, "POST", "/api/auth/login", { nickname: "Jiapu", password: "wrong123" });
+    assert.equal(wrongPassword.status, 401);
+
+    const loginResult = await request(ctx.baseUrl, "POST", "/api/auth/login", { nickname: "Jiapu", password: DEFAULT_PASSWORD });
+    assert.equal(loginResult.status, 200);
+    assert.equal(loginResult.payload.data.user.nickname, "Jiapu");
+    assert.equal(loginResult.payload.data.user.password_hash, undefined);
+
+    const registered = await request(
+      ctx.baseUrl,
+      "POST",
+      "/api/auth/register",
+      { nickname: "NewPlayer01", password: "abc123456" },
+    );
+    assert.equal(registered.status, 201);
+    assert.equal(registered.payload.data.user.role, "student");
+    assert.equal(registered.payload.data.user.auth_status, "unverified");
+    assert.equal(registered.payload.data.user.student_no, "");
+
+    const stored = ctx.app.store.get("users", registered.payload.data.user.id);
+    assert.ok(stored.password_hash.startsWith("scrypt$"));
+    assert.equal(stored.password, undefined);
+    assert.notEqual(stored.password_hash, "abc123456");
+
+    const duplicate = await request(ctx.baseUrl, "POST", "/api/auth/register", { nickname: "NewPlayer01", password: "abc123456" });
+    assert.equal(duplicate.status, 409);
+
+    const weak = await request(ctx.baseUrl, "POST", "/api/auth/register", { nickname: "WeakPlayer", password: "123456" });
+    assert.equal(weak.status, 400);
   } finally {
     await ctx.close();
   }
@@ -275,7 +323,7 @@ test("admin can ban and unban user accounts", async () => {
     assert.equal(banned.payload.data.status, "banned");
     assert.equal(banned.payload.data.status_reason, "测试封禁");
 
-    const loginAfterBan = await request(ctx.baseUrl, "POST", "/api/auth/login", { student_no: "2313983" });
+    const loginAfterBan = await request(ctx.baseUrl, "POST", "/api/auth/login", { nickname: "YanTong", password: DEFAULT_PASSWORD });
     assert.equal(loginAfterBan.status, 403);
 
     const oldTokenMe = await request(ctx.baseUrl, "GET", "/api/users/me", undefined, studentToken);
@@ -291,7 +339,7 @@ test("admin can ban and unban user accounts", async () => {
     assert.equal(restored.status, 200);
     assert.equal(restored.payload.data.status, "active");
 
-    const loginAfterRestore = await request(ctx.baseUrl, "POST", "/api/auth/login", { student_no: "2313983" });
+    const loginAfterRestore = await request(ctx.baseUrl, "POST", "/api/auth/login", { nickname: "YanTong", password: DEFAULT_PASSWORD });
     assert.equal(loginAfterRestore.status, 200);
     assert.equal(loginAfterRestore.payload.data.user.status, "active");
   } finally {
