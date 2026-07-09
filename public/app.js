@@ -551,6 +551,7 @@ async function saveProfileEdit(event) {
 async function loadGames() {
   state.games = await api("/api/games");
   renderGameSelect();
+  renderTagFilter();
 }
 
 async function loadBootstrap() {
@@ -568,6 +569,18 @@ function renderGameSelect() {
     .join("");
 }
 
+function renderTagFilter() {
+  const select = $("#tagFilter");
+  if (!select) return;
+  const current = select.value;
+  const tags = [...new Set(state.games.flatMap((game) => game.tags || []).map(String).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, "zh-CN"));
+  select.innerHTML = [`<option value="">全部标签</option>`]
+    .concat(tags.map((tag) => `<option value="${escapeHtml(tag)}">${escapeHtml(tag)}</option>`))
+    .join("");
+  select.value = tags.includes(current) ? current : "";
+}
+
 function canApplyToSession(session) {
   if (!isVerifiedStudent()) return false;
   if (state.user.id === session.host_id) return false;
@@ -579,8 +592,9 @@ function canApplyToSession(session) {
 
 async function loadSessions() {
   const type = encodeURIComponent($("#typeFilter").value);
+  const tag = encodeURIComponent($("#tagFilter").value);
   const keyword = encodeURIComponent($("#keywordFilter").value);
-  state.sessions = await api(`/api/sessions?type=${type}&keyword=${keyword}`);
+  state.sessions = await api(`/api/sessions?type=${type}&tag=${tag}&keyword=${keyword}`);
   $("#sessionList").innerHTML = state.sessions.map(renderSessionCard).join("") || "<p class='meta'>暂无组局</p>";
 }
 
@@ -593,10 +607,12 @@ function renderSessionCard(session) {
       <div class="meta">
         <span class="badge">${session.game_name}</span>
         <span class="badge">${session.game_type}</span>
+        ${(session.game_tags || []).map((tag) => `<span class="badge">${escapeHtml(tag)}</span>`).join("")}
         <span class="badge ${session.seats_left > 0 ? "good" : "bad"}">剩余 ${session.seats_left} 位</span>
         <span class="badge ${session.join_mode === "manual" ? "warn" : "good"}">${session.join_mode === "manual" ? "发起人审核" : "直接加入"}</span>
       </div>
       <p>${session.description || "暂无说明"}</p>
+      ${(session.recommendation_reasons || []).length ? `<p class="hint">推荐理由：${session.recommendation_reasons.map(escapeHtml).join("、")}</p>` : ""}
       <p class="meta">${fmtTime(session.start_time)} · ${locationText} · 发起人：${session.host_nickname}</p>
       <div class="actions">
         <button onclick="showSession('${session.id}')">详情</button>
@@ -1452,6 +1468,7 @@ window.showMemberProfile = showMemberProfile;
 $("#loginBtn").addEventListener("click", () => login().catch((error) => toast(error.message)));
 $("#refreshSessions").addEventListener("click", () => loadSessions().catch((error) => toast(error.message)));
 $("#typeFilter").addEventListener("change", () => loadSessions().catch((error) => toast(error.message)));
+$("#tagFilter").addEventListener("change", () => loadSessions().catch((error) => toast(error.message)));
 $("#keywordFilter").addEventListener("input", () => loadSessions().catch((error) => toast(error.message)));
 $("#createSessionForm").addEventListener("submit", (event) => createSession(event).catch((error) => toast(error.message)));
 $("#profileEditForm").addEventListener("submit", (event) => saveProfileEdit(event).catch((error) => toast(error.message)));

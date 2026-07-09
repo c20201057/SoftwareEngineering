@@ -64,6 +64,44 @@ test("health and public session list work", async () => {
   }
 });
 
+test("session list supports tag filtering and recommendation ordering", async () => {
+  const ctx = await createTestServer();
+  try {
+    const hostToken = await login(ctx.baseUrl, "2314007");
+    const time = createFutureWindow(6, 20, 2);
+
+    const create = await request(
+      ctx.baseUrl,
+      "POST",
+      "/api/sessions",
+      {
+        game_id: "g1",
+        title: "推荐排序测试阿瓦隆局",
+        description: "用于验证热门和近期组局优先展示",
+        start_time: time.start,
+        end_time: time.end,
+        venue_id: "v1",
+        max_members: 7,
+        min_credit_required: 80,
+        join_mode: "direct",
+      },
+      hostToken,
+    );
+    assert.equal(create.status, 201);
+    const createdId = create.payload.data.id;
+
+    const tagged = await request(ctx.baseUrl, "GET", "/api/sessions?tag=%E6%8E%A8%E7%90%86");
+    assert.equal(tagged.status, 200);
+    assert.ok(tagged.payload.data.length >= 1);
+    assert.equal(tagged.payload.data.every((session) => session.game_tags.includes("推理")), true);
+    assert.equal(tagged.payload.data[0].id, createdId);
+    assert.ok(tagged.payload.data[0].recommendation_score > 0);
+    assert.ok(tagged.payload.data[0].recommendation_reasons.length > 0);
+  } finally {
+    await ctx.close();
+  }
+});
+
 test("verified student can publish with selected venue and host can approve applications", async () => {
   const ctx = await createTestServer();
   try {

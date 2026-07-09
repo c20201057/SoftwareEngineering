@@ -14,19 +14,26 @@ class SessionService {
   list(query = {}) {
     const status = normalizeText(query.status || "recruiting");
     const type = normalizeText(query.type);
+    const tag = normalizeText(query.tag).toLowerCase();
     const keyword = normalizeText(query.keyword).toLowerCase();
     const sessions = this.store.all("game_sessions");
+    const popularity = this.gamePopularity(sessions);
     return sessions
       .filter((session) => !status || session.status === status)
       .filter((session) => {
         const game = this.store.get("game_libs", session.game_id);
         const location = this.resolveSessionLocation(session);
+        const tags = (game?.tags || []).map((item) => String(item).toLowerCase());
         if (type && game?.type !== type) return false;
+        if (tag && !tags.includes(tag)) return false;
         if (!keyword) return true;
-        return `${session.title} ${session.description} ${location} ${game?.name || ""}`.toLowerCase().includes(keyword);
+        return `${session.title} ${session.description} ${location} ${game?.name || ""} ${(game?.tags || []).join(" ")}`.toLowerCase().includes(keyword);
       })
-      .sort((a, b) => new Date(a.start_time) - new Date(b.start_time))
-      .map((session) => this.sessionSummary(session));
+      .map((session) => this.sessionSummary(session, popularity))
+      .sort((a, b) => (
+        b.recommendation_score - a.recommendation_score
+        || new Date(a.start_time) - new Date(b.start_time)
+      ));
   }
 
   mine(user) {
@@ -456,21 +463,76 @@ class SessionService {
     };
   }
 
-  sessionSummary(session) {
+  sessionSummary(session, popularity = null) {
     const game = this.store.get("game_libs", session.game_id);
     const host = this.store.get("users", session.host_id);
     const reservation = this.resolveSessionReservation(session.id);
     const venue = reservation ? this.store.get("venues", reservation.venue_id) : null;
+    const recommendation = this.recommendationForSession(session, popularity || this.gamePopularity(this.store.all("game_sessions")));
     return {
       ...session,
       location: this.resolveSessionLocation(session, reservation, venue),
       game_name: game?.name || "",
       game_type: game?.type || "",
+      game_tags: game?.tags || [],
       host_nickname: host?.nickname || host?.name || "",
       seats_left: Math.max(0, session.max_members - session.current_members),
+      recommendation_score: recommendation.score,
+      recommendation_reasons: recommendation.reasons,
       venue_id: reservation?.venue_id || null,
       venue_name: venue?.name || "",
       venue_location: venue?.location || "",
+    };
+  }
+
+  gamePopularity(sessions) {
+    const counts = new Map();
+    for (const session of sessions) {
+      if (session.status === "cancelled") continue;
+      counts.set(session.game_id, (counts.get(session.game_id) || 0) + 1);
+    }
+    return counts;
+  }
+
+  recommendationForSession(session, popularity) {
+    const reasons = [];
+    let score = 0;
+    const popularityCount = popularity.get(session.game_id) || 0;
+    if (popularityCount > 1) {
+      score += Math.min(40, popularityCount * 8);
+      reasons.push("热门游戏");
+    }
+
+    const start = new Date(session.start_time).getTime();
+    const now = Date.now();
+    if (!Number.isNaN(start)) {
+      const hoursUntil = (start - now) / 3600000;
+      if (hoursUntil >= 0) {
+        score += Math.max(0, 60 - hoursUntil / 6);
+        reasons.push(hoursUntil <= 72 ? "近期开始" : "未来活动");
+      } else {
+        score += Math.max(0, 12 + hoursUntil / 24);
+      }
+    }
+
+    const seatsLeft = Math.max(0, Number(session.max_members || 0) - Number(session.current_members || 0));
+    if (session.status === "recruiting" && seatsLeft > 0) {
+      score += 20;
+      reasons.push("仍有名额");
+      if (seatsLeft <= 2) {
+        score += 4;
+        reasons.push("名额紧俏");
+      }
+    }
+
+    if (session.join_mode === "direct") {
+      score += 6;
+      reasons.push("直接加入");
+    }
+
+    return {
+      score: Math.round(score),
+      reasons: reasons.slice(0, 3),
     };
   }
 

@@ -233,7 +233,7 @@ nav {
 
 .filters {
   display: grid;
-  grid-template-columns: 140px 240px auto;
+  grid-template-columns: 140px 150px minmax(220px, 1fr) auto;
   gap: 8px;
 }
 
