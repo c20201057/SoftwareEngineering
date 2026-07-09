@@ -70,7 +70,7 @@
     \begin{tabular}{>{\bfseries}p{3.0cm}p{8.0cm}}
       项目名称 & 校缘聚（CampusGather）桌游/剧本杀组局平台 \\
       设计依据 & 《校缘聚需求分析文档》与本次软件设计报告要求 \\
-      交付内容 & 软件设计报告、UML/ER/架构图、可运行原型、数据库脚本与测试 \\
+      交付内容 & 软件设计报告、UML/ER/架构图、可运行原型、JSON 数据文件与测试 \\
     \end{tabular}
 
     \vspace{1.8cm}
@@ -108,7 +108,7 @@
   \item 为发起人提供组局发布、成员审核、活动状态维护和场地预约申请能力；
   \item 为系统管理员提供实名认证、游戏库、违规内容、投诉、信用和日志统计管理能力；
   \item 为场地/社团管理员提供场地维护、开放时段配置、预约审核、占用追踪和场地通知能力；
-  \item 在课程周期内完成可运行原型，同时预留 MySQL、学校统一身份认证、微信小程序和通知推送等后续扩展点。
+  \item 在课程周期内完成可运行原型，同时预留学校统一身份认证、微信小程序和通知推送等后续扩展点。
 \end{enumerate}
 
 \subsection{系统功能概述}
@@ -131,7 +131,7 @@
 
 \subsection{系统总体架构设计}
 
-系统采用客户端--服务器与分层 MVC 相结合的架构。客户端层包含微信小程序学生端和管理后台；应用服务层使用 Node.js REST API 承载鉴权、组局、场地、信用、投诉、通知等模块；数据层以 Repository 抽象隔离存储实现，开发阶段使用 JSON 文件持久化以便演示，部署阶段可切换为 MySQL，并通过事务、索引和外键保证一致性。
+系统采用客户端--服务器与分层 MVC 相结合的架构。客户端层包含微信小程序学生端和管理后台；应用服务层使用 Node.js REST API 承载鉴权、组局、场地、信用、投诉、通知等模块；数据层统一采用 JSON 文件持久化，便于本地演示、版本追踪和课程验收。
 
 \resultfigure{architecture.png}{系统总体架构设计}{fig:architecture}
 
@@ -144,7 +144,7 @@
     表现层 & 移动端与后台页面，负责表单录入、状态展示、操作确认、错误提示 & 前端不直接访问数据文件；所有业务操作经 REST API 完成。 \\
     接口/控制层 & 路由分发、参数校验、登录态解析、角色权限校验、统一响应格式 & 错误码统一为 VALIDATION\_ERROR、FORBIDDEN、NOT\_FOUND、CONFLICT 等。 \\
     业务服务层 & 组局、报名、场地、投诉、信用、通知、日志等业务规则 & 关键状态变更集中在服务层，避免前端绕过规则。 \\
-    数据访问层 & 通过 Repository 封装 CRUD、查询、保存与种子数据 & 开发期 JSONRepository；生产期 MySQLRepository，接口保持一致。 \\
+    数据访问层 & 通过 JSONStore 封装 CRUD、查询、保存与种子数据 & 每个实体集合独立保存为 JSON 文件，写入时使用临时文件替换。 \\
     基础设施层 & 学校认证、推送、监控、备份 & 均使用适配器模式，原型可模拟，部署可替换。 \\
     \bottomrule
   \end{tabularx}
@@ -165,10 +165,10 @@
   前端 & 微信小程序/响应式 Web 原型 & 符合校园移动使用场景；Web 原型便于课程验收直接运行。 \\
   后端 & Node.js 原生 HTTP + 模块化服务 & 异步 I/O 适合高并发浏览与报名；无外部依赖，便于离线演示和部署。 \\
   接口 & RESTful API + JSON & 易于小程序调用、调试和生成接口文档；统一错误码便于前后端协作。 \\
-  数据库 & MySQL 8.0（报告设计）/JSON 文件（原型开发） & MySQL 支持事务和关系约束；JSON 存储降低课程演示环境成本，二者由 Repository 隔离。 \\
+  数据存储 & JSON 文件持久化 & 不依赖外部数据库服务，降低演示环境成本；集合结构由 seed.js 和运行数据共同体现。 \\
   图表 & Graphviz DOT & 本地可生成 UML、ER 与架构图，源文件可追踪，后续可转 PlantUML 或 draw.io。 \\
   测试 & Node.js 内置 node:test & 不依赖网络安装包即可覆盖核心接口与业务规则。 \\
-  部署 & Nginx + Node.js + MySQL & 结构简单，适合校内试点；后续可通过多实例、缓存和读写分离扩展。 \\
+  部署 & Node.js + 静态前端 + JSON 数据目录 & 结构简单，适合课程验收与本地演示；后续可通过缓存、备份和访问控制增强稳定性。 \\
   \bottomrule
   \caption{技术选型说明}
 \end{longtable}
@@ -300,25 +300,25 @@
 
 \resultfigure{deployment.png}{系统部署图}{fig:deployment}
 
-部署设计支持课程原型和后续试点两种形态。课程原型可由一个 Node.js 进程同时提供静态页面和 API；正式试点时通过 Nginx 接入 HTTPS，Node.js 多实例连接 MySQL，并接入日志告警、学校统一身份认证和推送服务。
+部署设计以课程原型为核心形态：一个 Node.js 进程同时提供静态页面、REST API 和 JSON 文件持久化能力；正式试点时可在外层接入 HTTPS、日志告警、学校统一身份认证和推送服务。
 
-\section{数据库设计}
+\section{数据存储设计}
 
-\subsection{数据库 E-R 图}
+\subsection{数据实体关系图}
 
-\resultfigure{er_diagram.png}{数据库 E-R 图}{fig:er}
+\resultfigure{er_diagram.png}{数据实体关系图}{fig:er}
 
-数据库以 users 为主体，game\_sessions 为活动核心。报名申请、成员、预约、评价、投诉、信用、通知、日志均通过外键关联到用户或组局，便于追溯完整业务链路。
+数据模型以 users 为主体，game\_sessions 为活动核心。报名申请、成员、预约、评价、投诉、信用、通知、日志均通过 id 字段关联到用户或组局，便于追溯完整业务链路。
 
-\subsection{主要数据表设计}
+\subsection{主要数据集合设计}
 
 \begin{longtable}{P{3.2cm} P{5.4cm} P{4.0cm} P{3.0cm}}
   \toprule
-  表名 & 关键字段 & 主键/外键 & 说明 \\
+  集合名 & 关键字段 & 主键/关联 & 说明 \\
   \midrule
   \endfirsthead
   \toprule
-  表名 & 关键字段 & 主键/外键 & 说明 \\
+  集合名 & 关键字段 & 主键/关联 & 说明 \\
   \midrule
   \endhead
   users & id, student\_no, name, nickname, role, auth\_status, credit\_score, status, avatar, tags, contact, auth\_submission\_name, auth\_submission\_student\_no, auth\_submission\_contact, auth\_submission\_note, auth\_submitted\_at, auth\_review\_reason, auth\_reviewed\_at, status\_reason & PK id；UNIQUE student\_no & 用户、管理员与场地管理员统一建模，通过 role 区分权限。ID 采用 5 位数字编码：10001--11000 为管理员，11001--99999 为普通用户。avatar 存储头像文件名，auth\_submission 系列字段支持实名认证提交流程。 \\
@@ -337,13 +337,13 @@
   \caption{主要数据表设计}
 \end{longtable}
 
-\subsection{关键索引与一致性设计}
+\subsection{关键查询与一致性设计}
 
 \begin{enumerate}
-  \item \texttt{game\_sessions} 建立 \texttt{(status, start\_time)}、\texttt{(game\_id, start\_time)} 和 \texttt{host\_id} 索引，支撑列表筛选和个人组局查询。
-  \item \texttt{session\_members} 对 \texttt{(session\_id, user\_id)} 建唯一约束，防止重复报名；\texttt{session\_applications} 对待审核状态建立组合索引。
-  \item \texttt{venue\_reservations} 对 \texttt{(venue\_id, start\_time, end\_time, status)} 建索引，审核时快速发现时间冲突。
-  \item 报名审批、退出扣分、投诉成立后的信用变更应放在同一事务中执行；原型由单进程同步写文件保证演示一致性，生产由 MySQL 事务保证。
+  \item \texttt{game\_sessions} 按 \texttt{status}、\texttt{start\_time}、\texttt{game\_id} 和 \texttt{host\_id} 进行内存筛选与排序，支撑列表和个人组局查询。
+  \item \texttt{session\_members} 通过服务层检查 \texttt{(session\_id, user\_id)} 组合，防止重复报名；报名申请按 \texttt{status} 区分待审核记录。
+  \item \texttt{venue\_reservations} 在服务层按 \texttt{venue\_id}、时间区间和状态进行冲突检测，避免同一场地被重复占用。
+  \item 报名审批、退出扣分、投诉成立后的信用变更由单进程同步写入 JSON 文件，保证课程演示场景下的数据一致性。
 \end{enumerate}
 
 \section{安全、性能与可扩展性设计}
@@ -383,7 +383,7 @@
   \item 角色权限集中在鉴权中间件与用户 role 字段，后续可加入 DM、社团负责人、商家等角色。
   \item 推荐算法独立为 RecommendationService，初期基于时间/类型/地点筛选，后续可引入兴趣标签和历史参与记录。
   \item 外部学校认证、微信订阅消息、短信或邮件都通过 Adapter 封装，避免业务服务直接依赖第三方 SDK。
-  \item Repository 抽象保证原型 JSON 存储和生产 MySQL 存储可以替换，接口和服务层不变。
+  \item JSONStore 集中封装读写逻辑，业务服务只依赖集合接口，便于后续扩展备份、校验和导入导出能力。
 \end{enumerate}
 
 \subsection{异常处理机制}
@@ -417,7 +417,7 @@
     接口/控制层 & \texttt{src/server.js}, \texttt{src/router.js} & 访问 \texttt{/api/health}，使用前端或测试脚本调用核心接口。含头像静态资源路由 \texttt{/profile\_photo/}。 \\
     业务服务层 & \texttt{src/services/userService.js}, \texttt{sessionService.js}, \texttt{venueService.js}, \texttt{complaintService.js} 等 & 通过 \texttt{node --test} 覆盖登录、认证提交与审核、发布（含场地绑定）、报名、审核、场地冲突、投诉信用变更。 \\
     数据访问层 & \texttt{src/database/jsonStore.js}, \texttt{src/database/seed.js} 与 \texttt{data/*.json} & 重启后数据不丢失；seed.js 预置 6 个用户（含头像、认证状态）、2 个场地、3 款游戏和 2 条组局示例。 \\
-    数据库设计 & \texttt{database/schema.sql} & 检查表、索引、外键与本报告字段一致；users 表含 avatar 与 auth\_submission 系列字段。 \\
+    数据模型设计 & \texttt{src/database/seed.js}, \texttt{data/*.json} & 检查集合字段与本报告一致；users 集合含 avatar 与 auth\_submission 系列字段。 \\
     前端演示 & \texttt{public/index.html}, \texttt{public/app.js}, \texttt{public/styles.css} & 浏览器打开本地服务即可完成学生个人主页编辑、实名认证提交、管理员审核、场地选择发布组局、参与者详情查看等完整流程。 \\
     静态资源 & \texttt{data/profile\_photo/}（12 张头像图片） & 头像通过 \texttt{/profile\_photo/文件名} 访问，支持 default、adm、1--10 共 12 个选项。 \\
     \bottomrule
@@ -427,7 +427,7 @@
 
 \subsection{原型边界}
 
-本次课程实现以完整业务闭环为目标，不接入真实微信 AppID、学校统一身份认证和线上推送密钥；这些环境参数需要学校或课程平台确认后替换。原型使用 JSON 文件持久化，便于课堂演示；报告已给出 MySQL 表结构，后续可将 Repository 实现替换为 MySQL。
+本次课程实现以完整业务闭环为目标，不接入真实微信 AppID、学校统一身份认证和线上推送密钥；这些环境参数需要学校或课程平台确认后替换。原型统一使用 JSON 文件持久化，便于课堂演示、数据重置和版本检查。
 
 \subsection{测试计划}
 
@@ -441,7 +441,7 @@
     业务验收 & 学生端完成“编辑个人主页--实名认证提交--浏览--报名--评价/投诉”；管理员端完成“认证审核/用户列表/投诉/内容库”；场地端完成“场地管理/预约审核”。 & 前端页面可演示，头像上传与展示、ID 分配方案、数据持久化可追溯。 \\
     性能检查 & 构造列表筛选和连续报名请求 & 关键接口在本地 3 秒内响应，无超额报名。 \\
     安全检查 & 未登录、未认证、越权账号分别调用写接口 & 返回 401/403，不修改数据。 \\
-    提交 & 报告源码、图片、PDF、源码、README、schema.sql、测试 & 推送到 GitHub main 分支。 \\
+    提交 & 报告源码、图片、PDF、源码、README、JSON 数据说明、测试 & 推送到 GitHub main 分支。 \\
     \bottomrule
   \end{tabularx}
   \caption{测试与交付计划}

@@ -47,11 +47,10 @@ npm test
 | `第1组+软件设计作业.tex` | 按 LaTeX 示例格式重写的软件设计报告源码，在线编译时需同时上传 `report_assets/` |
 | `src/` | 后端服务、路由、业务模块、JSON 数据层 |
 | `public/` | 可运行前端原型 |
-| `database/schema.sql` | MySQL 生产库设计 |
 | `docs/API.md` | API 摘要 |
 | `docs/design-mapping.md` | 报告与代码映射 |
 | `report_assets/` | 报告 UML/ER/架构图源文件和图片 |
 
 ## 原型边界
 
-当前实现不接入真实微信 AppID、学校统一身份认证和线上推送服务；相关能力已通过模块和接口预留。运行期使用 JSON 文件持久化，生产部署时可按 `database/schema.sql` 切换 MySQL Repository。
+当前实现不接入真实微信 AppID、学校统一身份认证和线上推送服务；相关能力已通过模块和接口预留。项目统一使用 JSON 文件持久化，运行数据保存在 `data/*.json`，种子数据由 `src/database/seed.js` 初始化。

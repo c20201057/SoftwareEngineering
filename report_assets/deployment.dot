@@ -6,14 +6,14 @@ digraph G {
   phone [label="移动端\n微信客户端/小程序"];
   browser [label="管理端浏览器"];
   nginx [label="Nginx/HTTPS\n静态资源与反向代理"];
-  server [label="Node.js 应用实例\nREST API + 静态前端"];
-  db [label="MySQL 主库\n事务/索引/备份"];
+  node [label="Node.js 应用实例\nREST API + 静态前端"];
+  data [label="JSON 数据文件\ndata/*.json"];
   log [label="日志与监控\n访问日志/错误告警"];
   external [label="学校统一身份认证\n通知推送服务"];
   phone -> nginx;
   browser -> nginx;
-  nginx -> server;
-  server -> db;
-  server -> log;
-  server -> external;
+  nginx -> node;
+  node -> data;
+  node -> log;
+  node -> external;
 }

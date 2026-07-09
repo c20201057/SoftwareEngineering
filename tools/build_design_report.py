@@ -46,6 +46,8 @@ def dot(name: str, source: str) -> Path:
             stderr=subprocess.PIPE,
         )
     except Exception as exc:  # pragma: no cover - fallback only
+        if png_path.exists():
+            return png_path
         from PIL import ImageDraw, ImageFont
 
         img = PILImage.new("RGB", (1600, 900), "white")
@@ -89,8 +91,7 @@ digraph G {{
   subgraph cluster_data {{
     label="数据与外部依赖层";
     color="#F8D4B4";
-    repo [label="Repository 抽象\\nJSON 开发存储 / MySQL 部署"];
-    mysql [label="MySQL 数据库\\n事务/索引/外键"];
+    repo [label="JSON 文件存储\\njsonStore / data/*.json"];
     auth [label="学校统一身份认证\\n预留接口"];
     push [label="通知推送服务\\n微信订阅/站内信"];
   }}
@@ -106,7 +107,6 @@ digraph G {{
   credit -> repo;
   notice -> repo;
   lib -> repo;
-  repo -> mysql [label="生产环境"];
   repo -> auth [label="认证核验"];
   notice -> push;
 }}
@@ -291,13 +291,13 @@ digraph G {{
   browser [label="管理端浏览器"];
   nginx [label="Nginx/HTTPS\\n静态资源与反向代理"];
   node [label="Node.js 应用实例\\nREST API + 静态前端"];
-  db [label="MySQL 主库\\n事务/索引/备份"];
+  data [label="JSON 数据文件\\ndata/*.json"];
   log [label="日志与监控\\n访问日志/错误告警"];
   external [label="学校统一身份认证\\n通知推送服务"];
   phone -> nginx;
   browser -> nginx;
   nginx -> node;
-  node -> db;
+  node -> data;
   node -> log;
   node -> external;
 }}
@@ -520,7 +520,7 @@ def build_pdf():
             "为发起人提供组局发布、成员审核、场地申请、活动状态维护与通知能力。",
             "为系统管理员提供实名认证、内容库、违规组局、投诉、信用和日志统计管理能力。",
             "为场地/社团管理员提供场地资源维护、开放时段配置、预约审核、占用记录和场地通知能力。",
-            "在一个学期内可完成可运行原型，并预留 MySQL、学校统一身份认证、微信小程序等生产扩展点。",
+            "在一个学期内可完成可运行原型，并预留学校统一身份认证、微信小程序和通知推送等生产扩展点。",
         ],
     )
 
@@ -536,14 +536,14 @@ def build_pdf():
     story.append(table(func_rows, styles, widths=[2.4 * cm, 5.6 * cm, 7.6 * cm]))
 
     story.append(p("1.3 系统总体架构设计", styles, "h2"))
-    story.append(p("系统采用客户端-服务器与分层 MVC 相结合的架构。客户端层包含微信小程序学生端和管理后台；应用服务层使用 Node.js REST API 承载鉴权、组局、场地、信用、投诉、通知等模块；数据层以 Repository 抽象隔离存储实现，开发阶段使用 JSON 文件持久化以便演示，部署阶段切换为 MySQL，并通过事务、索引和外键保证一致性。", styles))
+    story.append(p("系统采用客户端-服务器与分层 MVC 相结合的架构。客户端层包含微信小程序学生端和管理后台；应用服务层使用 Node.js REST API 承载鉴权、组局、场地、信用、投诉、通知等模块；数据层统一采用 JSON 文件持久化，便于本地演示、版本追踪和课程验收。", styles))
     story.append(figure(figures["architecture"], "图 1-1 系统总体架构设计", styles))
     arch_rows = [
         ["层次", "职责", "可实践约束"],
         ["表现层", "移动端与后台页面，负责表单录入、状态展示、操作确认、错误提示", "前端不直接访问数据文件；所有业务操作经 REST API 完成。"],
         ["接口/控制层", "路由分发、参数校验、登录态解析、角色权限校验、统一响应格式", "错误码统一为 VALIDATION_ERROR、FORBIDDEN、NOT_FOUND、CONFLICT 等。"],
         ["业务服务层", "组局、报名、场地、投诉、信用、通知、日志等业务规则", "关键状态变更集中在服务层，避免前端绕过规则。"],
-        ["数据访问层", "通过 Repository 封装 CRUD、查询、保存与种子数据", "开发期 JSONRepository；生产期 MySQLRepository，接口保持一致。"],
+        ["数据访问层", "通过 JSONStore 封装 CRUD、查询、保存与种子数据", "每个实体集合独立保存为 JSON 文件，写入时使用临时文件替换。"],
         ["基础设施层", "学校认证、推送、监控、备份", "均使用适配器模式，原型可模拟，部署可替换。"],
     ]
     story.append(table(arch_rows, styles, widths=[2.6 * cm, 6.1 * cm, 6.9 * cm]))
@@ -554,10 +554,10 @@ def build_pdf():
         ["前端", "微信小程序/响应式 Web 原型", "符合校园移动使用场景；Web 原型便于课程验收直接运行。"],
         ["后端", "Node.js 原生 HTTP + 模块化服务", "异步 I/O 适合高并发浏览与报名；无外部依赖，便于离线演示和部署。"],
         ["接口", "RESTful API + JSON", "易于小程序调用、调试和生成接口文档；统一错误码便于前后端协作。"],
-        ["数据库", "MySQL 8.0（报告设计）/JSON 文件（原型开发）", "MySQL 支持事务和关系约束；JSON 存储降低课程演示环境成本，二者由 Repository 隔离。"],
+        ["数据存储", "JSON 文件持久化", "不依赖外部数据库服务，降低演示环境成本；集合结构由 seed.js 和运行数据共同体现。"],
         ["图表", "Graphviz DOT", "本地可生成 UML/ER/架构图，源文件可追踪，后续可转 PlantUML 或 draw.io。"],
         ["测试", "Node.js 内置 node:test", "不依赖网络安装包即可覆盖核心接口与业务规则。"],
-        ["部署", "Nginx + Node.js + MySQL", "结构简单，适合校内试点；后续可通过多实例与读写分离扩展。"],
+        ["部署", "Node.js + 静态前端 + JSON 数据目录", "结构简单，适合课程验收与本地演示；后续可通过缓存、备份和访问控制增强稳定性。"],
     ]
     story.append(table(tech_rows, styles, widths=[2.4 * cm, 4.2 * cm, 9.0 * cm]))
 
@@ -630,15 +630,15 @@ def build_pdf():
     story.append(p("核心顺序图已在第 2 章给出，分别展示申请加入组局与场地预约审核。实现时应保证顺序图中的校验步骤在服务层执行，而不是只在前端提示。", styles))
     story.append(p("3.4 部署图（加分项）", styles, "h2"))
     story.append(figure(figures["deployment"], "图 3-3 部署图", styles))
-    story.append(p("部署设计支持课程原型和后续试点两种形态。课程原型可由一个 Node.js 进程同时提供静态页面和 API；正式试点时通过 Nginx 接入 HTTPS，Node.js 多实例连接 MySQL，并接入日志告警、学校统一身份认证和推送服务。", styles))
+    story.append(p("部署设计以课程原型为核心形态：一个 Node.js 进程同时提供静态页面、REST API 和 JSON 文件持久化能力；正式试点时可在外层接入 HTTPS、日志告警、学校统一身份认证和推送服务。", styles))
 
-    story.append(p("第 4 章 数据库设计", styles, "h1"))
-    story.append(p("4.1 数据库 E-R 图", styles, "h2"))
-    story.append(figure(figures["er_diagram"], "图 4-1 数据库 E-R 图", styles))
-    story.append(p("数据库以 users 为主体，game_sessions 为活动核心。报名申请、成员、预约、评价、投诉、信用、通知、日志均通过外键关联到用户或组局，便于追溯完整业务链路。", styles))
-    story.append(p("4.2 主要数据表设计", styles, "h2"))
+    story.append(p("第 4 章 数据存储设计", styles, "h1"))
+    story.append(p("4.1 数据实体关系图", styles, "h2"))
+    story.append(figure(figures["er_diagram"], "图 4-1 数据实体关系图", styles))
+    story.append(p("数据模型以 users 为主体，game_sessions 为活动核心。报名申请、成员、预约、评价、投诉、信用、通知、日志均通过 id 字段关联到用户或组局，便于追溯完整业务链路。", styles))
+    story.append(p("4.2 主要数据集合设计", styles, "h2"))
     db_tables = [
-        ["表名", "关键字段", "主键/外键", "说明"],
+        ["集合名", "关键字段", "主键/关联", "说明"],
         ["users", "id, student_no, name, nickname, role, auth_status, credit_score, status, tags, contact, created_at", "PK id；UNIQUE student_no", "用户、管理员与场地管理员统一建模，通过 role 区分权限。"],
         ["game_libs", "id, name, type, min_players, max_players, duration_minutes, difficulty, description, tags, status", "PK id", "桌游/剧本库，供发布组局和筛选使用。"],
         ["game_sessions", "id, host_id, game_id, title, description, start_time, end_time, location, max_members, current_members, min_credit_required, join_mode, status", "PK id；FK host_id/users；FK game_id/game_libs", "一次具体组局活动。"],
@@ -653,16 +653,16 @@ def build_pdf():
         ["admin_logs", "id, operator_id, action, object_type, object_id, result, remark, created_at", "PK id；FK operator_id/users", "后台关键操作审计日志。"],
     ]
     story.append(table(db_tables, styles, widths=[2.8 * cm, 5.0 * cm, 3.8 * cm, 4.0 * cm], small=True))
-    story.append(p("4.3 关键索引与一致性设计", styles, "h2"))
+    story.append(p("4.3 关键查询与一致性设计", styles, "h2"))
     bullet(
         story,
         styles,
         [
-            "game_sessions 建立 (status, start_time)、(game_id, start_time)、host_id 索引，支撑列表筛选和个人组局查询。",
-            "session_members 对 (session_id, user_id) 建唯一约束，防止重复报名；session_applications 对待审核状态建立组合索引。",
-            "venue_reservations 对 (venue_id, start_time, end_time, status) 建索引，审核时快速发现时间冲突。",
-            "credit_records、notifications、admin_logs 按 user_id/operator_id 与 created_at 建索引，支撑个人时间线与审计查询。",
-            "报名审批、退出扣分、投诉成立后的信用变更应放在同一事务中执行；原型由单进程同步写文件保证演示一致性，生产由 MySQL 事务保证。",
+            "game_sessions 按 status、start_time、game_id 和 host_id 进行内存筛选与排序，支撑列表和个人组局查询。",
+            "session_members 通过服务层检查 (session_id, user_id) 组合，防止重复报名；报名申请按 status 区分待审核记录。",
+            "venue_reservations 在服务层按 venue_id、时间区间和状态进行冲突检测，避免同一场地被重复占用。",
+            "credit_records、notifications、admin_logs 按 user_id/operator_id 与 created_at 排序，支撑个人时间线与审计查询。",
+            "报名审批、退出扣分、投诉成立后的信用变更由单进程同步写入 JSON 文件，保证课程演示场景下的数据一致性。",
         ],
     )
 
@@ -675,7 +675,7 @@ def build_pdf():
         ["隐私保护", "学号、联系方式、投诉证据等敏感字段默认不在公开接口返回；对外展示信用记录采用次数和类型脱敏。"],
         ["输入校验", "标题、简介、评价、投诉内容进行长度、必填和敏感词校验；人数、时间、评分等使用类型和范围校验。"],
         ["审计日志", "实名认证、账号状态、违规处理、投诉处理、场地审核、信用调整等后台动作写入 AdminLog，至少保留 6 个月。"],
-        ["传输与存储", "正式部署使用 HTTPS；生产库对学号、手机号等敏感字段进行加密或脱敏存储；备份文件限制访问权限。"],
+        ["传输与存储", "正式部署使用 HTTPS；对学号、手机号等敏感字段进行加密或脱敏存储；备份文件限制访问权限。"],
     ]
     story.append(table(security_rows, styles, widths=[3.2 * cm, 12.4 * cm]))
 
@@ -700,7 +700,7 @@ def build_pdf():
             "角色权限集中在鉴权中间件与用户 role 字段，后续可加入 DM、社团负责人、商家等角色。",
             "推荐算法独立为 RecommendationService，初期基于时间/类型/地点筛选，后续可引入兴趣标签和历史参与记录。",
             "外部学校认证、微信订阅消息、短信或邮件都通过 Adapter 封装，避免业务服务直接依赖第三方 SDK。",
-            "Repository 抽象保证原型 JSON 存储和生产 MySQL 存储可以替换，接口和服务层不变。",
+            "JSONStore 集中封装读写逻辑，业务服务只依赖集合接口，便于后续扩展备份、校验和导入导出能力。",
         ],
     )
     story.append(p("5.4 异常处理机制", styles, "h2"))
@@ -722,9 +722,9 @@ def build_pdf():
         [
             "业务日志：记录发布、报名、退出、审核、投诉、信用调整和通知发送等事件。",
             "安全日志：记录登录失败、越权访问、管理员操作和敏感数据查询。",
-            "运行监控：采集接口响应时间、错误率、报名冲突数、通知失败数、数据库连接数。",
+            "运行监控：采集接口响应时间、错误率、报名冲突数、通知失败数和 JSON 写入异常数。",
             "告警策略：关键接口 5xx 错误升高、场地审核大量失败、报名超时或备份失败时通知维护人员。",
-            "备份策略：生产 MySQL 每日增量、每周全量备份；日志按月归档，满足 6 个月追溯要求。",
+            "备份策略：定期备份 data 目录中的 JSON 文件；日志按月归档，满足 6 个月追溯要求。",
         ],
     )
 
@@ -735,7 +735,7 @@ def build_pdf():
         ["接口/控制层", "src/server.js、src/router.js 或等效 API 路由", "访问 /api/health，使用前端或测试脚本调用核心接口。"],
         ["业务服务层", "src/services/sessionService.js、venueService.js、complaintService.js 等", "通过 node:test 覆盖报名、审核、场地冲突、投诉信用变更。"],
         ["数据访问层", "src/database/jsonStore.js 与 data/*.json", "重启后数据不丢失；删除 data 文件可重新种子初始化。"],
-        ["数据库设计", "database/schema.sql", "检查表、索引、外键与本报告字段一致。"],
+        ["数据模型设计", "src/database/seed.js、data/*.json", "检查集合字段与本报告一致。"],
         ["前端演示", "public/index.html、public/app.js、public/styles.css", "浏览器打开本地服务即可完成学生/管理员/场地管理员流程。"],
         ["文档与接口说明", "README.md、docs/API.md、docs/design-mapping.md", "说明启动、角色账号、接口与设计映射。"],
     ]
@@ -746,7 +746,7 @@ def build_pdf():
         styles,
         [
             "本次课程实现以完整业务闭环为目标，不接入真实微信 AppID、学校统一身份认证和线上推送密钥；这些环境参数需要学校或课程平台确认后替换。",
-            "原型使用 JSON 文件持久化，便于课堂演示；报告已给出 MySQL 表结构，后续可将 Repository 实现替换为 MySQL。",
+            "原型统一使用 JSON 文件持久化，便于课堂演示、数据重置和版本检查。",
             "UML 图已由本地 Graphviz 生成并嵌入 PDF；若老师要求专业 UML 工具源文件，可按 DOT 源图在 StarUML/draw.io 中重绘。",
             "团队成员信息已按真实姓名与学号写入首页、README、接口文档和演示数据。",
         ],
@@ -758,7 +758,7 @@ def build_pdf():
         ["业务验收", "学生端完成“浏览-报名-评价/投诉”；管理员端完成“认证/投诉/内容库”；场地端完成“预约审核”。", "前端页面可演示，数据持久化可追溯。"],
         ["性能检查", "构造列表筛选和连续报名请求", "关键接口在本地 3 秒内响应，无超额报名。"],
         ["安全检查", "未登录、未认证、越权账号分别调用写接口", "返回 401/403，不修改数据。"],
-        ["提交", "报告 PDF、源码、README、schema.sql、测试", "推送到 GitHub main 分支。"],
+        ["提交", "报告 PDF、源码、README、JSON 数据说明、测试", "推送到 GitHub main 分支。"],
     ]
     story.append(table(test_rows, styles, widths=[3.0 * cm, 6.0 * cm, 6.6 * cm]))
 

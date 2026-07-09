@@ -22,8 +22,7 @@ digraph G {
   subgraph cluster_data {
     label="数据与外部依赖层";
     color="#F8D4B4";
-    repo [label="Repository 抽象\nJSON 开发存储 / MySQL 部署"];
-    mysql [label="MySQL 数据库\n事务/索引/外键"];
+    repo [label="JSON 文件存储\njsonStore / data/*.json"];
     auth [label="学校统一身份认证\n预留接口"];
     push [label="通知推送服务\n微信订阅/站内信"];
   }
@@ -39,7 +38,6 @@ digraph G {
   credit -> repo;
   notice -> repo;
   lib -> repo;
-  repo -> mysql [label="生产环境"];
   repo -> auth [label="认证核验"];
   notice -> push;
 }
