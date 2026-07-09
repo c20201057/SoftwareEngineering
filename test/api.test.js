@@ -226,6 +226,15 @@ test("session list supports tag filtering and recommendation ordering", async ()
     assert.equal(tagged.payload.data[0].id, createdId);
     assert.ok(tagged.payload.data[0].recommendation_score > 0);
     assert.ok(tagged.payload.data[0].recommendation_reasons.length > 0);
+
+    const firstPage = await request(ctx.baseUrl, "GET", "/api/sessions?tag=%E6%8E%A8%E7%90%86&page=1&pageSize=1");
+    assert.equal(firstPage.status, 200);
+    assert.equal(firstPage.payload.data.page, 1);
+    assert.equal(firstPage.payload.data.page_size, 1);
+    assert.equal(firstPage.payload.data.items.length, 1);
+    assert.equal(firstPage.payload.data.items[0].id, createdId);
+    assert.ok(firstPage.payload.data.total >= 1);
+    assert.ok(firstPage.payload.data.total_pages >= 1);
   } finally {
     await ctx.close();
   }

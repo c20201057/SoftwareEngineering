@@ -18,7 +18,7 @@ class SessionService {
     const keyword = normalizeText(query.keyword).toLowerCase();
     const sessions = this.store.all("game_sessions");
     const popularity = this.gamePopularity(sessions);
-    return sessions
+    const rows = sessions
       .filter((session) => !status || session.status === status)
       .filter((session) => status !== "recruiting" || !this.hasStarted(session))
       .filter((session) => {
@@ -35,6 +35,8 @@ class SessionService {
         b.recommendation_score - a.recommendation_score
         || new Date(a.start_time) - new Date(b.start_time)
       ));
+    if (query.page === undefined && query.pageSize === undefined) return rows;
+    return this.paginate(rows, query);
   }
 
   mine(user) {
@@ -656,6 +658,21 @@ class SessionService {
   hasStarted(session) {
     const start = new Date(session.start_time).getTime();
     return Number.isFinite(start) && start <= Date.now();
+  }
+
+  paginate(rows, query) {
+    const pageSize = Math.min(50, Math.max(1, Number.parseInt(query.pageSize || "6", 10) || 6));
+    const total = rows.length;
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    const page = Math.min(totalPages, Math.max(1, Number.parseInt(query.page || "1", 10) || 1));
+    const start = (page - 1) * pageSize;
+    return {
+      items: rows.slice(start, start + pageSize),
+      total,
+      page,
+      page_size: pageSize,
+      total_pages: totalPages,
+    };
   }
 
   decorateReservation(reservation) {

@@ -39,7 +39,7 @@
 | POST | `/api/users/me/auth` | 学生 | 提交或重新提交实名认证申请 |
 | GET | `/api/users/me/credit` | 登录 | 个人信用记录 |
 | GET/POST/PATCH | `/api/games` | 公开/管理员 | 游戏库查询与维护 |
-| GET/POST | `/api/sessions` | 公开/认证学生 | 查询和发布组局 |
+| GET/POST | `/api/sessions` | 公开/认证学生 | 查询和发布组局；查询支持 `type`、`tag`、`keyword`、`page`、`pageSize` |
 | GET/PATCH | `/api/sessions/:id` | 公开/发起人 | 组局详情与编辑 |
 | POST | `/api/sessions/:id/applications` | 认证学生 | 报名或提交申请 |
 | PATCH | `/api/applications/:id` | 发起人 | 审核报名 |

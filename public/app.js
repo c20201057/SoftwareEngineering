@@ -8,6 +8,11 @@ const state = {
   notifications: [],
   currentSessionMembers: [],
   expandedSessionId: "",
+  expandedSessionDetail: null,
+  sessionPage: 1,
+  sessionPageSize: 6,
+  sessionTotal: 0,
+  sessionTotalPages: 1,
 };
 
 const REVIEW_SCORE_LABELS = {
@@ -175,6 +180,7 @@ function clearLocalSession() {
   state.notifications = [];
   state.currentSessionMembers = [];
   state.expandedSessionId = "";
+  state.expandedSessionDetail = null;
   localStorage.removeItem("cg_token");
 }
 
@@ -663,15 +669,23 @@ function canApplyToSession(session) {
   return true;
 }
 
-async function loadSessions() {
+async function loadSessions(options = {}) {
+  if (options.resetPage) state.sessionPage = 1;
   const type = encodeURIComponent($("#typeFilter").value);
   const tag = encodeURIComponent($("#tagFilter").value);
   const keyword = encodeURIComponent($("#keywordFilter").value);
-  state.sessions = await api(`/api/sessions?type=${type}&tag=${tag}&keyword=${keyword}`);
+  const page = encodeURIComponent(state.sessionPage);
+  const pageSize = encodeURIComponent(state.sessionPageSize);
+  const data = await api(`/api/sessions?type=${type}&tag=${tag}&keyword=${keyword}&page=${page}&pageSize=${pageSize}`);
+  state.sessions = data.items || [];
+  state.sessionPage = data.page || 1;
+  state.sessionTotal = data.total || 0;
+  state.sessionTotalPages = data.total_pages || 1;
   if (state.expandedSessionId && !state.sessions.some((session) => session.id === state.expandedSessionId)) {
     collapseSessionDetail({ renderList: false });
   }
   renderSessionList();
+  renderSessionPagination();
 }
 
 function renderSessionList() {
@@ -701,15 +715,15 @@ function renderSessionCard(session) {
         <button class="${isExpanded ? "secondary" : ""}" onclick="showSession('${session.id}')">${isExpanded ? "收起" : "详情"}</button>
         ${canApply ? `<button class="secondary" onclick="applySession('${session.id}')">申请/加入</button>` : ""}
       </div>
+      ${isExpanded && state.expandedSessionDetail ? renderSessionDetail(state.expandedSessionDetail) : ""}
     </article>
   `;
 }
 
 function collapseSessionDetail(options = {}) {
   state.expandedSessionId = "";
+  state.expandedSessionDetail = null;
   state.currentSessionMembers = [];
-  const detailPanel = $("#sessionDetail");
-  if (detailPanel) detailPanel.innerHTML = "";
   if (options.renderList !== false) renderSessionList();
 }
 
@@ -720,8 +734,12 @@ async function showSession(id, options = {}) {
   }
   const detail = await api(`/api/sessions/${id}`);
   state.expandedSessionId = id;
+  state.expandedSessionDetail = detail;
   state.currentSessionMembers = detail.members || [];
   renderSessionList();
+}
+
+function renderSessionDetail(detail) {
   const locationText = formatSessionLocation(detail);
   const isMember = detail.members.some((member) => member.user_id === state.user?.id);
   const hasPendingApplication = detail.applications.some((item) => item.applicant_id === state.user?.id && item.status === "pending");
@@ -745,7 +763,8 @@ async function showSession(id, options = {}) {
     ? "<p class='meta'>你已提交报名申请，正在等待发起人审核。</p>"
     : "";
 
-  $("#sessionDetail").innerHTML = `
+  return `
+    <div class="inline-detail">
     <h3>${detail.title}</h3>
     <p>${detail.description || "暂无说明"}</p>
     <div class="meta">
@@ -760,7 +779,30 @@ async function showSession(id, options = {}) {
     <div class="member-tags">${detail.members.map(renderMemberTag).join("")}</div>
     ${userHint}
     ${actionButtons.length ? `<div class="actions">${actionButtons.join("")}</div>` : ""}
+    </div>
   `;
+}
+
+function renderSessionPagination() {
+  const box = $("#sessionPagination");
+  if (!box) return;
+  if (!state.sessionTotal) {
+    box.innerHTML = "";
+    return;
+  }
+  box.innerHTML = `
+    <button type="button" class="secondary" ${state.sessionPage <= 1 ? "disabled" : ""} onclick="changeSessionPage(${state.sessionPage - 1})">上一页</button>
+    <span>第 ${state.sessionPage} / ${state.sessionTotalPages} 页，共 ${state.sessionTotal} 个组局</span>
+    <button type="button" class="secondary" ${state.sessionPage >= state.sessionTotalPages ? "disabled" : ""} onclick="changeSessionPage(${state.sessionPage + 1})">下一页</button>
+  `;
+}
+
+function changeSessionPage(page) {
+  const next = Math.min(state.sessionTotalPages, Math.max(1, Number(page) || 1));
+  if (next === state.sessionPage) return;
+  state.sessionPage = next;
+  collapseSessionDetail({ renderList: false });
+  loadSessions().catch((error) => toast(error.message));
 }
 
 async function refreshSessionViews(sessionId = null) {
@@ -1640,6 +1682,7 @@ async function logout() {
 }
 
 window.showSession = showSession;
+window.changeSessionPage = changeSessionPage;
 window.applySession = applySession;
 window.reviewApplication = reviewApplication;
 window.finishSession = finishSession;
@@ -1671,9 +1714,9 @@ $("#showLoginPanel").addEventListener("click", () => switchAuthPanel("login"));
 $("#showRegisterPanel").addEventListener("click", () => switchAuthPanel("register"));
 $("#logoutBtn").addEventListener("click", () => logout().catch((error) => toast(error.message)));
 $("#refreshSessions").addEventListener("click", () => loadSessions().catch((error) => toast(error.message)));
-$("#typeFilter").addEventListener("change", () => loadSessions().catch((error) => toast(error.message)));
-$("#tagFilter").addEventListener("change", () => loadSessions().catch((error) => toast(error.message)));
-$("#keywordFilter").addEventListener("input", () => loadSessions().catch((error) => toast(error.message)));
+$("#typeFilter").addEventListener("change", () => loadSessions({ resetPage: true }).catch((error) => toast(error.message)));
+$("#tagFilter").addEventListener("change", () => loadSessions({ resetPage: true }).catch((error) => toast(error.message)));
+$("#keywordFilter").addEventListener("input", () => loadSessions({ resetPage: true }).catch((error) => toast(error.message)));
 $("#createSessionForm").addEventListener("submit", (event) => createSession(event).catch((error) => toast(error.message)));
 $("#profileEditForm").addEventListener("submit", (event) => saveProfileEdit(event).catch((error) => toast(error.message)));
 $("#editSessionForm").addEventListener("submit", (event) => saveSessionEdit(event).catch((error) => toast(error.message)));
