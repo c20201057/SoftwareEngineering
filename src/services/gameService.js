@@ -41,7 +41,9 @@ class GameService {
     requireFields(payload, ["name", "type", "min_players", "max_players"]);
     const min = Number(payload.min_players);
     const max = Number(payload.max_players);
-    const duration = Number(payload.duration_minutes || 120);
+    const duration = payload.duration_minutes === undefined || payload.duration_minutes === null || payload.duration_minutes === ""
+      ? 120
+      : Number(payload.duration_minutes);
     const status = normalizeText(payload.status || "active");
     this.validateGameFields({ min_players: min, max_players: max, duration_minutes: duration, status });
 
