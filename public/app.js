@@ -162,13 +162,18 @@ async function loadMe() {
     renderProfile();
     renderNavigation();
   } catch {
-    state.token = "";
-    state.user = null;
-    state.notifications = [];
-    localStorage.removeItem("cg_token");
+    clearLocalSession();
     renderProfile();
     renderNavigation();
   }
+}
+
+function clearLocalSession() {
+  state.token = "";
+  state.user = null;
+  state.notifications = [];
+  state.currentSessionMembers = [];
+  localStorage.removeItem("cg_token");
 }
 
 function renderProfile() {
@@ -1541,12 +1546,18 @@ async function register(event) {
   toast("注册成功，已进入未认证学生账号。");
 }
 
-function logout() {
-  state.token = "";
-  state.user = null;
-  state.notifications = [];
-  state.currentSessionMembers = [];
-  localStorage.removeItem("cg_token");
+async function logout() {
+  const hadToken = Boolean(state.token);
+  try {
+    if (hadToken) {
+      await api("/api/auth/logout", {
+        method: "POST",
+        body: {},
+      });
+    }
+  } finally {
+    clearLocalSession();
+  }
   renderAuthGate();
   renderProfile();
   renderNavigation();
@@ -1582,7 +1593,7 @@ $("#loginForm").addEventListener("submit", (event) => login(event).catch((error)
 $("#registerForm").addEventListener("submit", (event) => register(event).catch((error) => toast(error.message)));
 $("#showLoginPanel").addEventListener("click", () => switchAuthPanel("login"));
 $("#showRegisterPanel").addEventListener("click", () => switchAuthPanel("register"));
-$("#logoutBtn").addEventListener("click", logout);
+$("#logoutBtn").addEventListener("click", () => logout().catch((error) => toast(error.message)));
 $("#refreshSessions").addEventListener("click", () => loadSessions().catch((error) => toast(error.message)));
 $("#typeFilter").addEventListener("change", () => loadSessions().catch((error) => toast(error.message)));
 $("#tagFilter").addEventListener("change", () => loadSessions().catch((error) => toast(error.message)));

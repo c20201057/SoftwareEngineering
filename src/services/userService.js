@@ -3,6 +3,7 @@ const path = require("node:path");
 const { badRequest, conflict, forbidden, notFound, unauthorized } = require("../errors");
 const { ensureDir, maskStudentNo, normalizeText, nowIso } = require("../utils");
 const { DEFAULT_INITIAL_PASSWORD, hashPassword, verifyPassword } = require("../security/password");
+const { createSessionToken, hashSessionToken, sessionExpiresAt } = require("../security/sessionToken");
 
 const AVATAR_OPTIONS = new Set([
   "default.png",
@@ -88,7 +89,7 @@ class UserService {
     if (!user || !verifyPassword(password, user.password_hash)) throw unauthorized("昵称或密码错误");
     if (user.status === "banned") throw forbidden("账号已被封禁，无法登录");
     return {
-      token: user.id,
+      token: this.createSession(user.id),
       user: this.publicUser(user, user),
     };
   }
@@ -121,9 +122,24 @@ class UserService {
       created_at: nowIso(),
     });
     return {
-      token: user.id,
+      token: this.createSession(user.id),
       user: this.publicUser(user, user),
     };
+  }
+
+  logout(token) {
+    const session = this.findSessionByToken(token);
+    if (!session) throw unauthorized("登录状态已失效");
+    this.store.update("auth_sessions", session.id, {
+      revoked_at: nowIso(),
+    });
+    return { logged_out: true };
+  }
+
+  userForSession(token) {
+    const session = this.findActiveSession(token);
+    if (!session) return null;
+    return this.getById(session.user_id);
   }
 
   current(user) {
@@ -296,6 +312,32 @@ class UserService {
         updated_at: user.updated_at || nowIso(),
       });
     }
+  }
+
+  createSession(userId) {
+    const token = createSessionToken();
+    this.store.insert("auth_sessions", {
+      user_id: userId,
+      token_hash: hashSessionToken(token),
+      created_at: nowIso(),
+      expires_at: sessionExpiresAt(),
+      revoked_at: null,
+    });
+    return token;
+  }
+
+  findSessionByToken(token) {
+    const normalized = normalizeText(token);
+    if (!normalized) return null;
+    const tokenHash = hashSessionToken(normalized);
+    return this.store.all("auth_sessions").find((session) => session.token_hash === tokenHash) || null;
+  }
+
+  findActiveSession(token) {
+    const session = this.findSessionByToken(token);
+    if (!session || session.revoked_at) return null;
+    if (!session.expires_at || new Date(session.expires_at).getTime() <= Date.now()) return null;
+    return session;
   }
 
   requireLogin(user) {

@@ -85,8 +85,31 @@ test("nickname password auth and student registration work", async () => {
 
     const loginResult = await request(ctx.baseUrl, "POST", "/api/auth/login", { nickname: "Jiapu", password: DEFAULT_PASSWORD });
     assert.equal(loginResult.status, 200);
+    assert.notEqual(loginResult.payload.data.token, "11001");
+    assert.match(loginResult.payload.data.token, /^[A-Za-z0-9_-]{40,}$/);
     assert.equal(loginResult.payload.data.user.nickname, "Jiapu");
     assert.equal(loginResult.payload.data.user.password_hash, undefined);
+
+    const storedSession = ctx.app.store.all("auth_sessions").find((session) => session.user_id === "11001");
+    assert.ok(storedSession.token_hash);
+    assert.equal(storedSession.token, undefined);
+    assert.notEqual(storedSession.token_hash, loginResult.payload.data.token);
+
+    const me = await request(ctx.baseUrl, "GET", "/api/users/me", undefined, loginResult.payload.data.token);
+    assert.equal(me.status, 200);
+    assert.equal(me.payload.data.id, "11001");
+
+    const userIdAsToken = await request(ctx.baseUrl, "GET", "/api/users/me", undefined, "11001");
+    assert.equal(userIdAsToken.status, 401);
+
+    const logout = await request(ctx.baseUrl, "POST", "/api/auth/logout", {}, loginResult.payload.data.token);
+    assert.equal(logout.status, 200);
+    assert.equal(logout.payload.data.logged_out, true);
+    const revokedSession = ctx.app.store.get("auth_sessions", storedSession.id);
+    assert.ok(revokedSession.revoked_at);
+
+    const afterLogout = await request(ctx.baseUrl, "GET", "/api/users/me", undefined, loginResult.payload.data.token);
+    assert.equal(afterLogout.status, 401);
 
     const registered = await request(
       ctx.baseUrl,
@@ -98,11 +121,24 @@ test("nickname password auth and student registration work", async () => {
     assert.equal(registered.payload.data.user.role, "student");
     assert.equal(registered.payload.data.user.auth_status, "unverified");
     assert.equal(registered.payload.data.user.student_no, "");
+    assert.notEqual(registered.payload.data.token, registered.payload.data.user.id);
 
     const stored = ctx.app.store.get("users", registered.payload.data.user.id);
     assert.ok(stored.password_hash.startsWith("scrypt$"));
     assert.equal(stored.password, undefined);
     assert.notEqual(stored.password_hash, "abc123456");
+
+    const registeredSession = ctx.app.store
+      .all("auth_sessions")
+      .find((session) => session.user_id === registered.payload.data.user.id);
+    assert.ok(registeredSession.token_hash);
+    assert.equal(registeredSession.token, undefined);
+
+    ctx.app.store.update("auth_sessions", registeredSession.id, {
+      expires_at: "2000-01-01T00:00:00.000Z",
+    });
+    const expiredToken = await request(ctx.baseUrl, "GET", "/api/users/me", undefined, registered.payload.data.token);
+    assert.equal(expiredToken.status, 401);
 
     const duplicate = await request(ctx.baseUrl, "POST", "/api/auth/register", { nickname: "NewPlayer01", password: "abc123456" });
     assert.equal(duplicate.status, 409);

@@ -259,6 +259,7 @@ function createSeedData() {
     complaints: [],
     notifications: [],
     admin_logs: [],
+    auth_sessions: [],
   };
 }
 

@@ -16,6 +16,7 @@ const COLLECTIONS = [
   "complaints",
   "notifications",
   "admin_logs",
+  "auth_sessions",
 ];
 
 const PREFIX = {
@@ -31,6 +32,7 @@ const PREFIX = {
   complaints: "c",
   notifications: "n",
   admin_logs: "l",
+  auth_sessions: "sess",
 };
 
 class JsonStore {

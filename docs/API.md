@@ -12,25 +12,29 @@
 { "success": false, "error": { "code": "CONFLICT", "message": "该组局名额已满" } }
 ```
 
-鉴权方式：登录后将返回的 `token` 放入 `Authorization: Bearer <token>`，原型中 token 即用户 id。
+鉴权方式：登录或注册后将返回的随机会话 `token` 放入 `Authorization: Bearer <token>`。服务端只保存 token 哈希，默认 24 小时过期；调用退出接口后当前 token 立即失效。
 
-## 演示账号
+## 登录账号
 
-| 学号 | 角色 | 说明 |
+登录使用昵称和密码，所有初始账号默认密码均为 `abc123456`。
+
+| 昵称 | 角色 | 说明 |
 |---|---|---|
-| 2313983 | student | 刘砚桐，已认证 |
-| 2314007 | student | 李佳璞，已认证 |
-| 2313828 | student | 苏雨辰，待认证 |
-| 2311987 | admin | 史傅冠华，系统管理员 |
-| 2312194 | student | 朱乐晨，已认证 |
-| venue001 | venue_admin | 场地管理员演示账号 |
+| YanTong | student | 刘砚桐，已认证 |
+| Jiapu | student | 李佳璞，已认证 |
+| Yuchen | student | 苏雨辰，待认证 |
+| Lechen | student | 朱乐晨，暂未认证 |
+| 系统管理员 | admin | 史傅冠华，系统管理员 |
+| 社团空间管理员 | venue_admin | 场地管理员演示账号 |
 
 ## 主要接口
 
 | 方法 | 路径 | 角色 | 说明 |
 |---|---|---|---|
 | GET | `/api/health` | 公开 | 健康检查 |
-| POST | `/api/auth/login` | 公开 | 登录 |
+| POST | `/api/auth/login` | 公开 | 昵称密码登录 |
+| POST | `/api/auth/register` | 公开 | 注册未认证学生账号 |
+| POST | `/api/auth/logout` | 登录 | 撤销当前会话 token |
 | GET/PUT | `/api/users/me` | 登录 | 当前用户资料 |
 | POST | `/api/users/me/auth` | 学生 | 提交或重新提交实名认证申请 |
 | GET | `/api/users/me/credit` | 登录 | 个人信用记录 |

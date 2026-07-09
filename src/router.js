@@ -66,6 +66,11 @@ async function handleApi(app, req, res, url) {
     return;
   }
 
+  if (req.method === "POST" && route === "/auth/logout") {
+    ok(res, services.userService.logout(resolveAuthToken(req)));
+    return;
+  }
+
   if (req.method === "GET" && route === "/users/me") {
     ok(res, services.userService.current(user));
     return;
@@ -278,9 +283,15 @@ async function parseBody(req) {
 }
 
 function resolveUser(app, req) {
-  const token = req.headers.authorization?.replace(/^Bearer\s+/i, "") || req.headers["x-user-id"];
+  const token = resolveAuthToken(req);
   if (!token) return null;
-  return app.services.userService.getById(token) || null;
+  return app.services.userService.userForSession(token) || null;
+}
+
+function resolveAuthToken(req) {
+  const authorization = req.headers.authorization || "";
+  const match = authorization.match(/^Bearer\s+(.+)$/i);
+  return match ? match[1].trim() : "";
 }
 
 function ok(res, data, status = 200) {
@@ -323,4 +334,4 @@ function handleError(res, error) {
   });
 }
 
-module.exports = { createHandler, handleApi, handleError, resolveUser };
+module.exports = { createHandler, handleApi, handleError, resolveUser, resolveAuthToken };
