@@ -3,6 +3,7 @@ const state = {
   user: null,
   sessions: [],
   games: [],
+  adminGames: [],
   venues: [],
   notifications: [],
   currentSessionMembers: [],
@@ -143,6 +144,17 @@ function resetVenueFormState() {
   $("#venueSubmitBtn").textContent = "新增场地";
 }
 
+function resetGameFormState() {
+  const form = $("#gameForm");
+  if (!form) return;
+  form.reset();
+  form.game_id.value = "";
+  form.type.value = "桌游";
+  form.status.value = "active";
+  form.duration_minutes.value = "120";
+  $("#gameSubmitBtn").textContent = "新增游戏";
+}
+
 async function login() {
   const studentNo = $("#account").value;
   const data = await api("/api/auth/login", {
@@ -241,6 +253,18 @@ function accountStatusTone(status) {
   return "";
 }
 
+function gameStatusText(status) {
+  if (status === "active") return "上架";
+  if (status === "inactive") return "已下架";
+  return status || "未知";
+}
+
+function gameStatusTone(status) {
+  if (status === "active") return "good";
+  if (status === "inactive") return "bad";
+  return "";
+}
+
 const RECOMMENDED_TAGS = [
   "推理",
   "策略",
@@ -293,6 +317,12 @@ function uniqueTags(tags) {
 function renderTagList(tags) {
   if (!tags.length) return "<span class='hint'>暂无偏好</span>";
   return tags.map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join("");
+}
+
+function renderGameTagList(tags) {
+  const rows = uniqueTags(tags || []);
+  if (!rows.length) return "<span class='hint'>暂无标签</span>";
+  return rows.map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join("");
 }
 
 function renderMemberTag(member) {
@@ -518,9 +548,13 @@ async function saveProfileEdit(event) {
   toast("个人资料已更新。");
 }
 
-async function loadBootstrap() {
+async function loadGames() {
   state.games = await api("/api/games");
   renderGameSelect();
+}
+
+async function loadBootstrap() {
+  await loadGames();
   renderVenueSelects();
   renderNavigation();
   await Promise.all([loadSessions(), loadAuthView(), loadVenues(), loadMine(), loadComplaints()]);
@@ -1236,6 +1270,104 @@ function renderAccountStatusList(users) {
   }).join("") || "<p class='meta'>暂无可管理账号</p>";
 }
 
+function renderAdminGameList(games) {
+  const panel = $("#gameManageList");
+  if (!panel) return;
+  const rows = [...games].sort((a, b) => (
+    (a.status === "active" ? 0 : 1) - (b.status === "active" ? 0 : 1)
+    || a.name.localeCompare(b.name, "zh-CN")
+  ));
+
+  panel.innerHTML = rows.map((game) => `
+    <div class="card admin-game-card">
+      <div>
+        <strong>${escapeHtml(game.name)}</strong>
+        <p class="meta">
+          <span class="badge ${gameStatusTone(game.status)}">${gameStatusText(game.status)}</span>
+          <span>${escapeHtml(game.type)}</span>
+          <span>${Number(game.min_players || 0)}-${Number(game.max_players || 0)}人</span>
+          <span>${Number(game.duration_minutes || 0)}分钟</span>
+          <span>${escapeHtml(game.difficulty || "未标注")}</span>
+        </p>
+        <p>${escapeHtml(game.description || "暂无说明")}</p>
+        <div class="tag-list">${renderGameTagList(game.tags)}</div>
+      </div>
+      <div class="actions">
+        <button onclick="startGameEdit('${game.id}')">编辑</button>
+        ${game.status === "active"
+          ? `<button class="danger" onclick="changeGameStatus('${game.id}', 'inactive')">下架</button>`
+          : `<button onclick="changeGameStatus('${game.id}', 'active')">上架</button>`}
+      </div>
+    </div>
+  `).join("") || "<p class='meta'>暂无游戏库条目</p>";
+}
+
+async function saveGame(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const values = Object.fromEntries(new FormData(form).entries());
+  const gameId = values.game_id;
+  delete values.game_id;
+  const payload = {
+    ...values,
+    min_players: Number(values.min_players),
+    max_players: Number(values.max_players),
+    duration_minutes: Number(values.duration_minutes || 120),
+    tags: uniqueTags(parseTags(values.tags)),
+  };
+
+  if (gameId) {
+    await api(`/api/games/${gameId}`, {
+      method: "PATCH",
+      body: payload,
+    });
+    toast("游戏条目已更新。");
+  } else {
+    await api("/api/games", {
+      method: "POST",
+      body: payload,
+    });
+    toast("游戏条目已新增。");
+  }
+
+  resetGameFormState();
+  await Promise.all([loadGames(), loadAdmin()]);
+}
+
+function startGameEdit(id) {
+  const game = state.adminGames.find((item) => item.id === id);
+  const form = $("#gameForm");
+  if (!game || !form) return;
+  form.game_id.value = game.id;
+  form.name.value = game.name || "";
+  form.type.value = game.type || "桌游";
+  form.min_players.value = game.min_players || "";
+  form.max_players.value = game.max_players || "";
+  form.duration_minutes.value = game.duration_minutes || 120;
+  form.difficulty.value = game.difficulty || "";
+  form.status.value = game.status || "active";
+  form.tags.value = (game.tags || []).join(", ");
+  form.description.value = game.description || "";
+  $("#gameSubmitBtn").textContent = "保存游戏修改";
+  form.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+async function changeGameStatus(id, status) {
+  const game = state.adminGames.find((item) => item.id === id);
+  if (!game) return;
+  if (status === "inactive") {
+    const confirmed = window.confirm(`确定下架“${game.name}”吗？下架后它不会再出现在发布组局的游戏选择中。`);
+    if (!confirmed) return;
+  }
+  await api(`/api/games/${id}`, {
+    method: "PATCH",
+    body: { status },
+  });
+  if ($("#gameForm")?.game_id.value === id) resetGameFormState();
+  toast(status === "active" ? "游戏已上架。" : "游戏已下架。");
+  await Promise.all([loadGames(), loadAdmin()]);
+}
+
 async function reviewUserAuth(userId, action) {
   const reason = action === "approve"
     ? "信息校验通过"
@@ -1266,14 +1398,17 @@ async function changeUserBanStatus(userId, status) {
 
 async function loadAdmin() {
   try {
-    const [stats, logs, users] = await Promise.all([api("/api/admin/stats"), api("/api/admin/logs"), api("/api/users")]);
+    const [stats, logs, users, games] = await Promise.all([api("/api/admin/stats"), api("/api/admin/logs"), api("/api/users"), api("/api/games?includeInactive=true")]);
+    state.adminGames = games;
     $("#statsPanel").innerHTML = renderStats(stats);
     renderAuthReviewList(users);
+    renderAdminGameList(games);
     renderAccountStatusList(users);
     $("#logList").innerHTML = logs.map((log) => `<div class="card"><strong>${log.action}</strong><p>${log.object_type}:${log.object_id} · ${log.result}</p><p class="meta">${fmtTime(log.created_at)}</p></div>`).join("") || "<p class='meta'>暂无日志</p>";
   } catch (error) {
     $("#statsPanel").innerHTML = `<p class="meta">加载失败：${error.message}</p>`;
     $("#authReviewList").innerHTML = "";
+    $("#gameManageList").innerHTML = "";
     $("#accountStatusList").innerHTML = "";
     $("#logList").innerHTML = "";
   }
@@ -1305,6 +1440,8 @@ window.deleteVenueAction = deleteVenueAction;
 window.reviewReservation = reviewReservation;
 window.handleComplaint = handleComplaint;
 window.reviewUserAuth = reviewUserAuth;
+window.startGameEdit = startGameEdit;
+window.changeGameStatus = changeGameStatus;
 window.changeUserBanStatus = changeUserBanStatus;
 window.showAuthFeatureUnavailable = showAuthFeatureUnavailable;
 window.openProfileDialog = openProfileDialog;
@@ -1320,6 +1457,7 @@ $("#createSessionForm").addEventListener("submit", (event) => createSession(even
 $("#profileEditForm").addEventListener("submit", (event) => saveProfileEdit(event).catch((error) => toast(error.message)));
 $("#editSessionForm").addEventListener("submit", (event) => saveSessionEdit(event).catch((error) => toast(error.message)));
 $("#venueForm").addEventListener("submit", (event) => saveVenue(event).catch((error) => toast(error.message)));
+$("#gameForm").addEventListener("submit", (event) => saveGame(event).catch((error) => toast(error.message)));
 $("#closeEditSession").addEventListener("click", hideEditSessionPanel);
 $("#closeProfileDialog").addEventListener("click", closeProfileDialog);
 $("#profileDialog").addEventListener("click", (event) => {
@@ -1337,6 +1475,7 @@ $("#memberProfileDialog").addEventListener("click", (event) => {
   if (event.target.id === "memberProfileDialog") closeMemberProfileDialog();
 });
 $("#resetVenueForm").addEventListener("click", resetVenueFormState);
+$("#resetGameForm").addEventListener("click", resetGameFormState);
 $("#refreshAuth").addEventListener("click", () => loadAuthView().catch((error) => toast(error.message)));
 $("#refreshMine").addEventListener("click", () => loadMine().catch((error) => toast(error.message)));
 $("#refreshVenues").addEventListener("click", () => loadVenues().catch((error) => toast(error.message)));

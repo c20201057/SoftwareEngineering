@@ -605,6 +605,22 @@ nav {
   justify-content: flex-end;
 }
 
+.game-manage-list {
+  margin-top: 12px;
+}
+
+.admin-game-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.admin-game-card .actions {
+  margin-top: 0;
+  justify-content: flex-end;
+}
+
 .notification-head {
   display: flex;
   align-items: flex-start;
@@ -688,6 +704,10 @@ nav {
   .login-panel,
   .filters,
   .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-game-card {
     grid-template-columns: 1fr;
   }
 

@@ -1,6 +1,12 @@
 const { badRequest, notFound } = require("../errors");
 const { normalizeText, nowIso, requireFields } = require("../utils");
 
+const GAME_STATUSES = ["active", "inactive"];
+
+function normalizeTags(tags) {
+  return Array.isArray(tags) ? tags.map(normalizeText).filter(Boolean) : [];
+}
+
 class GameService {
   constructor(store, userService, logService) {
     this.store = store;
@@ -8,10 +14,11 @@ class GameService {
     this.logService = logService;
   }
 
-  list(query = {}) {
+  list(query = {}, viewer = null) {
     const type = normalizeText(query.type);
     const keyword = normalizeText(query.keyword).toLowerCase();
     const includeInactive = query.includeInactive === "true";
+    if (includeInactive) this.userService.requireRole(viewer, "admin");
     return this.store
       .all("game_libs")
       .filter((game) => includeInactive || game.status === "active")
@@ -19,7 +26,8 @@ class GameService {
       .filter((game) => {
         if (!keyword) return true;
         return `${game.name} ${game.type} ${(game.tags || []).join(" ")} ${game.description}`.toLowerCase().includes(keyword);
-      });
+      })
+      .sort((a, b) => a.name.localeCompare(b.name, "zh-CN"));
   }
 
   getActive(id) {
@@ -33,19 +41,20 @@ class GameService {
     requireFields(payload, ["name", "type", "min_players", "max_players"]);
     const min = Number(payload.min_players);
     const max = Number(payload.max_players);
-    if (!Number.isInteger(min) || !Number.isInteger(max) || min < 1 || max < min) {
-      throw badRequest("游戏人数范围不合法");
-    }
+    const duration = Number(payload.duration_minutes || 120);
+    const status = normalizeText(payload.status || "active");
+    this.validateGameFields({ min_players: min, max_players: max, duration_minutes: duration, status });
+
     const game = this.store.insert("game_libs", {
       name: normalizeText(payload.name),
       type: normalizeText(payload.type),
       min_players: min,
       max_players: max,
-      duration_minutes: Number(payload.duration_minutes || 120),
+      duration_minutes: duration,
       difficulty: normalizeText(payload.difficulty || "未标注"),
       description: normalizeText(payload.description),
-      tags: Array.isArray(payload.tags) ? payload.tags.map(normalizeText).filter(Boolean) : [],
-      status: "active",
+      tags: normalizeTags(payload.tags),
+      status,
       created_at: nowIso(),
     });
     this.logService.record(user, "create_game", "game_lib", game.id);
@@ -65,10 +74,24 @@ class GameService {
     for (const field of ["min_players", "max_players", "duration_minutes"]) {
       if (payload[field] !== undefined) patch[field] = Number(payload[field]);
     }
-    if (payload.tags !== undefined) patch.tags = Array.isArray(payload.tags) ? payload.tags.map(normalizeText).filter(Boolean) : [];
+    if (payload.tags !== undefined) patch.tags = normalizeTags(payload.tags);
+
+    this.validateGameFields({ ...game, ...patch });
     const updated = this.store.update("game_libs", id, patch);
     this.logService.record(user, "update_game", "game_lib", id);
     return updated;
+  }
+
+  validateGameFields(game) {
+    if (!Number.isInteger(game.min_players) || !Number.isInteger(game.max_players) || game.min_players < 1 || game.max_players < game.min_players) {
+      throw badRequest("游戏人数范围不合法");
+    }
+    if (!Number.isInteger(game.duration_minutes) || game.duration_minutes < 1) {
+      throw badRequest("游戏时长必须为正整数");
+    }
+    if (!GAME_STATUSES.includes(game.status)) {
+      throw badRequest("游戏状态必须为 active 或 inactive");
+    }
   }
 }
 

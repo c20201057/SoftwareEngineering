@@ -226,6 +226,57 @@ test("admin can ban and unban user accounts", async () => {
   }
 });
 
+test("admin can manage game library and inactive games are admin only", async () => {
+  const ctx = await createTestServer();
+  try {
+    const adminToken = await login(ctx.baseUrl, "2311987");
+    const studentToken = await login(ctx.baseUrl, "2314007");
+
+    const anonymousInactive = await request(ctx.baseUrl, "GET", "/api/games?includeInactive=true");
+    assert.equal(anonymousInactive.status, 401);
+
+    const studentInactive = await request(ctx.baseUrl, "GET", "/api/games?includeInactive=true", undefined, studentToken);
+    assert.equal(studentInactive.status, 403);
+
+    const created = await request(
+      ctx.baseUrl,
+      "POST",
+      "/api/games",
+      {
+        name: "谍影猎人",
+        type: "桌游",
+        min_players: 4,
+        max_players: 8,
+        duration_minutes: 60,
+        difficulty: "新手",
+        description: "适合轻量推理的聚会游戏",
+        tags: ["推理", "新手"],
+      },
+      adminToken,
+    );
+    assert.equal(created.status, 201);
+    const gameId = created.payload.data.id;
+
+    const inactive = await request(ctx.baseUrl, "PATCH", `/api/games/${gameId}`, { status: "inactive" }, adminToken);
+    assert.equal(inactive.status, 200);
+    assert.equal(inactive.payload.data.status, "inactive");
+
+    const publicGames = await request(ctx.baseUrl, "GET", "/api/games");
+    assert.equal(publicGames.status, 200);
+    assert.equal(publicGames.payload.data.some((game) => game.id === gameId), false);
+
+    const adminGames = await request(ctx.baseUrl, "GET", "/api/games?includeInactive=true", undefined, adminToken);
+    assert.equal(adminGames.status, 200);
+    assert.equal(adminGames.payload.data.some((game) => game.id === gameId && game.status === "inactive"), true);
+
+    const active = await request(ctx.baseUrl, "PATCH", `/api/games/${gameId}`, { status: "active" }, adminToken);
+    assert.equal(active.status, 200);
+    assert.equal(active.payload.data.status, "active");
+  } finally {
+    await ctx.close();
+  }
+});
+
 test("venue admin can approve manual reservation and overlapping reservation is prevented", async () => {
   const ctx = await createTestServer();
   try {

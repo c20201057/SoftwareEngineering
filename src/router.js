@@ -107,7 +107,7 @@ async function handleApi(app, req, res, url) {
   }
 
   if (req.method === "GET" && route === "/games") {
-    ok(res, services.gameService.list(query));
+    ok(res, services.gameService.list(query, user));
     return;
   }
 

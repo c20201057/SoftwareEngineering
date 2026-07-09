@@ -205,6 +205,38 @@
             </div>
           </div>
           <div class="section-block">
+            <h3>游戏库管理</h3>
+            <form id="gameForm" class="form-grid">
+              <input type="hidden" name="game_id" />
+              <label>名称<input name="name" required placeholder="如：阿瓦隆" /></label>
+              <label>
+                类型
+                <select name="type">
+                  <option value="桌游">桌游</option>
+                  <option value="剧本杀">剧本杀</option>
+                </select>
+              </label>
+              <label>最少人数<input name="min_players" type="number" min="1" required /></label>
+              <label>最多人数<input name="max_players" type="number" min="1" required /></label>
+              <label>预计时长（分钟）<input name="duration_minutes" type="number" min="1" value="120" /></label>
+              <label>难度<input name="difficulty" placeholder="如：新手 / 中等 / 进阶" /></label>
+              <label>
+                状态
+                <select name="status">
+                  <option value="active">上架</option>
+                  <option value="inactive">下架</option>
+                </select>
+              </label>
+              <label>标签<input name="tags" placeholder="用逗号分隔，如 推理, 策略" /></label>
+              <label class="wide">说明<textarea name="description" placeholder="补充游戏机制、适合人群或主持要求"></textarea></label>
+              <div class="wide form-actions">
+                <button type="submit" id="gameSubmitBtn">新增游戏</button>
+                <button type="button" class="secondary" id="resetGameForm">清空</button>
+              </div>
+            </form>
+            <div id="gameManageList" class="stack game-manage-list"></div>
+          </div>
+          <div class="section-block">
             <h3>账号封禁管理</h3>
             <div id="accountStatusList" class="stack"></div>
           </div>
