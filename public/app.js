@@ -61,6 +61,7 @@ function fmtTime(value) {
 function toLocalInputValue(value) {
   if (!value) return "";
   const date = new Date(value);
+  // datetime-local 不带时区，需要把 ISO 时间转换成本地输入框可识别的格式。
   const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
   return local.toISOString().slice(0, 16);
 }
@@ -328,6 +329,7 @@ async function compressAvatarFile(file) {
   if (!allowedTypes.has(file.type)) throw new Error("仅支持 PNG、JPG、WEBP 头像");
   if (file.size > 5 * 1024 * 1024) throw new Error("原始图片不能超过 5MB");
 
+  // 前端先裁成正方形并压缩，保证写入 JSON/本地文件的头像大小稳定。
   const dataUrl = await readFileAsDataUrl(file);
   const image = await loadImageFromDataUrl(dataUrl);
   const size = 256;
@@ -709,6 +711,7 @@ async function loadSessions(options = {}) {
   state.sessionTotal = data.total || 0;
   state.sessionTotalPages = data.total_pages || 1;
   if (state.expandedSessionId && !state.sessions.some((session) => session.id === state.expandedSessionId)) {
+    // 筛选或翻页后，如果展开项不在当前页，收起详情避免页面展示过期内容。
     collapseSessionDetail({ renderList: false });
   }
   renderSessionList();
@@ -725,6 +728,7 @@ function renderSessionCard(session) {
   const canApply = canApplyToSession(session);
   const locationText = formatSessionLocation(session);
   const isExpanded = state.expandedSessionId === session.id;
+  // 详情直接嵌入当前卡片下方，避免统一堆到列表底部影响浏览。
   return `
     <article class="card">
       <h3>${session.title}</h3>
@@ -973,6 +977,7 @@ function renderSessionReviewPanel(session, detail) {
   const isMember = members.some((member) => member.user_id === state.user?.id);
   if (!isMember) return "";
 
+  // 后端已按权限过滤 reviews；前端据此隐藏已经评价过的对象，减少重复提交。
   const reviewedTargetIds = new Set(
     reviews
       .filter((review) => review.reviewer_id === state.user?.id)
@@ -1606,6 +1611,7 @@ async function changeUserBanStatus(userId, status) {
 
 async function loadAdmin() {
   try {
+    // includeInactive 仅管理员接口可用，用于后台同时管理上架和下架游戏。
     const [stats, logs, users, games] = await Promise.all([api("/api/admin/stats"), api("/api/admin/logs"), api("/api/users"), api("/api/games?includeInactive=true")]);
     state.adminGames = games;
     $("#statsPanel").innerHTML = renderStats(stats);

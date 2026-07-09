@@ -19,6 +19,7 @@ function readJsonBody(req) {
     req.on("data", (chunk) => {
       raw += chunk;
       if (raw.length > 1_000_000) {
+        // 原型项目没有单独接入 body-parser，这里直接限制 JSON 请求体大小。
         reject(new Error("请求体过大"));
         req.destroy();
       }
@@ -87,6 +88,7 @@ function maskStudentNo(studentNo) {
 function safeJoin(root, requested) {
   const resolved = path.resolve(root, requested || "index.html");
   const rootResolved = path.resolve(root);
+  // path.resolve 后再做前缀检查，用来阻断 ../ 形式的静态资源路径穿越。
   if (!resolved.startsWith(rootResolved)) {
     return null;
   }

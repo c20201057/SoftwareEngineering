@@ -80,6 +80,7 @@ class VenueService {
     const relatedSessionIds = [...new Set(relatedReservations.map((item) => item.session_id))];
     const cancelReason = `场地 ${venue.name} 已删除，组局自动取消`;
 
+    // 删除场地需要级联取消预约和未完成组局，避免大厅继续展示不可用地点。
     for (const reservation of relatedReservations) {
       this.store.update("venue_reservations", reservation.id, {
         status: "cancelled",
@@ -249,6 +250,7 @@ class VenueService {
     const maxMembers = Number(max_members || 0);
     if (maxMembers > venue.capacity) throw conflict("组局人数上限超过场地容量");
 
+    // 场地冲突只以 approved 预约为准；编辑原预约时通过 ignore_reservation_id 排除自己。
     this.ensureNoVenueConflict(venue.id, start.toISOString(), end.toISOString(), ignore_reservation_id);
     return venue;
   }
@@ -296,6 +298,7 @@ class VenueService {
       .all("venue_reservations")
       .filter((item) => item.session_id === sessionId)
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    // 优先返回仍会影响组局的预约；没有活跃预约时返回最近记录用于详情展示。
     return rows.find((item) => ACTIVE_RESERVATION_STATUSES.includes(item.status)) || rows[0] || null;
   }
 

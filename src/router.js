@@ -293,6 +293,7 @@ async function parseBody(req) {
 }
 
 function resolveUser(app, req) {
+  // 所有接口统一从 Bearer token 恢复用户；公开接口拿到 null 后交给服务层决定是否允许。
   const token = resolveAuthToken(req);
   if (!token) return null;
   return app.services.userService.userForSession(token) || null;
@@ -311,6 +312,7 @@ function ok(res, data, status = 200) {
 function serveStatic(publicDir, req, res, url) {
   let requested = decodeURIComponent(url.pathname);
   if (requested === "/") requested = "/index.html";
+  // 静态资源路径必须落在 public/profile_photo 目录内，避免路径穿越读取本机文件。
   const file = safeJoin(publicDir, requested.slice(1));
   if (!file || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
     throw notFound("页面不存在");

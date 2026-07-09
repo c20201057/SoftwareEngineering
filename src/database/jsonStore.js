@@ -78,6 +78,7 @@ class JsonStore {
   write(collection, rows) {
     const file = this.fileFor(collection);
     const tmp = `${file}.tmp`;
+    // 先写临时文件再重命名，降低写入中断时留下半截 JSON 的概率。
     fs.writeFileSync(tmp, JSON.stringify(rows, null, 2), "utf-8");
     fs.renameSync(tmp, file);
   }
@@ -134,6 +135,7 @@ class JsonStore {
   }
 
   nextAccountId(rows, role = "student") {
+    // 管理端账号和学生账号使用不同号段，便于演示数据和注册用户区分。
     const isAdminRole = ["admin", "venue_admin"].includes(role);
     const min = isAdminRole ? 10001 : 11001;
     const max = isAdminRole ? 11000 : 99999;

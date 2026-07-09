@@ -19,6 +19,7 @@ class SessionService {
     const sessions = this.store.all("game_sessions");
     const popularity = this.gamePopularity(sessions);
     const rows = sessions
+      // 大厅默认只展示还没开始的招募中组局；历史状态需显式传 status 查询。
       .filter((session) => !status || session.status === status)
       .filter((session) => status !== "recruiting" || !this.hasStarted(session))
       .filter((session) => {
@@ -31,6 +32,7 @@ class SessionService {
         return `${session.title} ${session.description} ${location} ${game?.name || ""} ${(game?.tags || []).join(" ")}`.toLowerCase().includes(keyword);
       })
       .map((session) => this.sessionSummary(session, popularity))
+      // 推荐并不是单独入口，而是把热门、近期、仍有名额的组局排到更靠前。
       .sort((a, b) => (
         b.recommendation_score - a.recommendation_score
         || new Date(a.start_time) - new Date(b.start_time)
@@ -74,6 +76,7 @@ class SessionService {
     const memberIds = new Set(members.map((member) => member.user_id));
     const canViewAllReviews = viewer?.role === "admin";
     const canViewOwnReviews = viewer && memberIds.has(viewer.id);
+    // 互评内容按隐私规则过滤：管理员可看全部，成员只能看与自己相关的评价。
     const reviews = this.store
       .all("reviews")
       .filter((item) => item.session_id === id)
@@ -128,6 +131,7 @@ class SessionService {
       maxMembers,
     });
 
+    // 发布时直接锁定所选场地，后续编辑组局再同步更新对应预约记录。
     const session = this.store.insert("game_sessions", {
       host_id: user.id,
       game_id: game.id,
@@ -167,6 +171,7 @@ class SessionService {
 
     const currentReservation = this.resolveSessionReservation(session.id);
     const currentVenueId = currentReservation?.venue_id || "";
+    // 前端未提交 venue_id 时保持原场地；显式提交时才重新校验并更新预约。
     const nextVenueId = payload.venue_id === undefined
       ? currentVenueId
       : normalizeText(payload.venue_id);
@@ -396,6 +401,7 @@ class SessionService {
     this.requireHost(user, session);
     if (!["recruiting", "full"].includes(session.status)) throw conflict("该组局状态不允许标记完成");
     if (!this.hasStarted(session)) throw conflict("活动开始后才能标记完成");
+    // 只有 finished 会开放互评；未组局成功走 fail 状态，不产生互评入口。
     const updated = this.store.update("game_sessions", session.id, {
       status: "finished",
       updated_at: nowIso(),
@@ -535,6 +541,7 @@ class SessionService {
   recommendationForSession(session, popularity) {
     const reasons = [];
     let score = 0;
+    // 推荐分由热门程度、开始时间、剩余名额和加入方式共同决定，只影响列表排序。
     const popularityCount = popularity.get(session.game_id) || 0;
     if (popularityCount > 1) {
       score += Math.min(40, popularityCount * 8);
@@ -592,6 +599,7 @@ class SessionService {
       .map((member) => this.store.get("game_sessions", member.session_id))
       .filter(Boolean)
       .filter((item) => ["recruiting", "full"].includes(item.status));
+    // 同一用户不能加入时间重叠的进行中/待开始组局，避免线下活动撞车。
     for (const joined of joinedSessions) {
       if (overlaps(session.start_time, session.end_time, joined.start_time, joined.end_time)) {
         throw conflict(`活动时间与《${joined.title}》冲突`);

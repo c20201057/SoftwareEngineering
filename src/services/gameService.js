@@ -41,6 +41,7 @@ class GameService {
     requireFields(payload, ["name", "type", "min_players", "max_players"]);
     const min = Number(payload.min_players);
     const max = Number(payload.max_players);
+    // 只有未填写时使用默认时长；显式传 0 等非法值要交给校验逻辑拒绝。
     const duration = payload.duration_minutes === undefined || payload.duration_minutes === null || payload.duration_minutes === ""
       ? 120
       : Number(payload.duration_minutes);

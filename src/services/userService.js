@@ -44,6 +44,7 @@ class UserService {
     const isSelf = viewer && viewer.id === user.id;
     const isAdmin = viewer && viewer.role === "admin";
     const canViewAuth = isSelf || isAdmin;
+    // 学号、联系方式和审核材料只对本人或管理员可见，公开视图只返回脱敏信息。
     return {
       id: user.id,
       name: user.name,
@@ -211,6 +212,7 @@ class UserService {
     if (!AVATAR_UPLOAD_TYPES.has(mime)) throw badRequest("仅支持 PNG、JPG、WEBP 头像");
     const buffer = Buffer.from(match[2].replace(/\s/g, ""), "base64");
     if (!buffer.length || buffer.length > MAX_AVATAR_BYTES) throw badRequest("头像图片不能超过 512KB");
+    // 不能只相信 data URL 里的 MIME，需要校验文件头，避免伪装格式的上传内容。
     if (!this.hasValidImageSignature(buffer, mime)) throw badRequest("头像图片内容与格式不匹配");
     return { mime, buffer };
   }
@@ -324,6 +326,7 @@ class UserService {
   ensurePasswordHashes() {
     const users = this.store.all("users");
     const missing = users.filter((user) => !user.password_hash);
+    // 兼容旧版演示数据：启动时为没有密码哈希的账号补默认初始密码。
     for (const user of missing) {
       this.store.update("users", user.id, {
         password_hash: hashPassword(DEFAULT_INITIAL_PASSWORD),
@@ -334,6 +337,7 @@ class UserService {
 
   createSession(userId) {
     const token = createSessionToken();
+    // 原始 token 只返回给客户端，服务端只保存哈希，数据文件泄露时也不能直接复用登录态。
     this.store.insert("auth_sessions", {
       user_id: userId,
       token_hash: hashSessionToken(token),
