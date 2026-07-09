@@ -593,6 +593,18 @@ nav {
   margin-bottom: 2px;
 }
 
+.account-status-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.account-status-card .actions {
+  margin-top: 0;
+  justify-content: flex-end;
+}
+
 .notification-head {
   display: flex;
   align-items: flex-start;

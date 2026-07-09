@@ -176,6 +176,56 @@ test("student can submit auth request and admin approval unlocks join flow", asy
   }
 });
 
+test("admin can ban and unban user accounts", async () => {
+  const ctx = await createTestServer();
+  try {
+    const adminToken = await login(ctx.baseUrl, "2311987");
+    const studentToken = await login(ctx.baseUrl, "2313983");
+
+    const selfBan = await request(
+      ctx.baseUrl,
+      "PATCH",
+      "/api/users/10001/status",
+      { status: "banned", reason: "误操作" },
+      adminToken,
+    );
+    assert.equal(selfBan.status, 400);
+
+    const banned = await request(
+      ctx.baseUrl,
+      "PATCH",
+      "/api/users/11002/status",
+      { status: "banned", reason: "测试封禁" },
+      adminToken,
+    );
+    assert.equal(banned.status, 200);
+    assert.equal(banned.payload.data.status, "banned");
+    assert.equal(banned.payload.data.status_reason, "测试封禁");
+
+    const loginAfterBan = await request(ctx.baseUrl, "POST", "/api/auth/login", { student_no: "2313983" });
+    assert.equal(loginAfterBan.status, 403);
+
+    const oldTokenMe = await request(ctx.baseUrl, "GET", "/api/users/me", undefined, studentToken);
+    assert.equal(oldTokenMe.status, 403);
+
+    const restored = await request(
+      ctx.baseUrl,
+      "PATCH",
+      "/api/users/11002/status",
+      { status: "active", reason: "复核通过" },
+      adminToken,
+    );
+    assert.equal(restored.status, 200);
+    assert.equal(restored.payload.data.status, "active");
+
+    const loginAfterRestore = await request(ctx.baseUrl, "POST", "/api/auth/login", { student_no: "2313983" });
+    assert.equal(loginAfterRestore.status, 200);
+    assert.equal(loginAfterRestore.payload.data.user.status, "active");
+  } finally {
+    await ctx.close();
+  }
+});
+
 test("venue admin can approve manual reservation and overlapping reservation is prevented", async () => {
   const ctx = await createTestServer();
   try {

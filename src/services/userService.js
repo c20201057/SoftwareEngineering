@@ -46,6 +46,7 @@ class UserService {
             note: user.auth_submission_note || "",
           }
         : undefined,
+      status_reason: canViewAuth ? user.status_reason || "" : undefined,
       auth_submitted_at: canViewAuth ? user.auth_submitted_at || null : undefined,
       auth_review_reason: canViewAuth ? user.auth_review_reason || "" : undefined,
       auth_reviewed_at: canViewAuth ? user.auth_reviewed_at || null : undefined,
@@ -78,12 +79,12 @@ class UserService {
   }
 
   current(user) {
-    if (!user) throw unauthorized();
+    this.requireLogin(user);
     return this.publicUser(user, user);
   }
 
   updateProfile(user, payload) {
-    if (!user) throw unauthorized();
+    this.requireLogin(user);
     const nickname = normalizeText(payload.nickname ?? user.nickname);
     if (!nickname || nickname.length > 30) throw badRequest("昵称不能为空且不能超过 30 个字符");
     const tags = Array.isArray(payload.tags)
@@ -154,6 +155,9 @@ class UserService {
     if (!["active", "muted", "limited", "banned"].includes(status)) {
       throw badRequest("账号状态必须为 active、muted、limited 或 banned");
     }
+    if (target.id === viewer.id && status === "banned") {
+      throw badRequest("不能封禁当前登录账号");
+    }
     const updated = this.store.update("users", target.id, {
       status,
       status_reason: normalizeText(payload.reason),
@@ -164,6 +168,7 @@ class UserService {
 
   requireLogin(user) {
     if (!user) throw unauthorized();
+    if (user.status === "banned") throw forbidden("账号已被封禁，无法执行该操作");
     return user;
   }
 

@@ -226,6 +226,21 @@ function authStatusTone(status) {
   return "bad";
 }
 
+function accountStatusText(status) {
+  if (status === "active") return "正常";
+  if (status === "muted") return "禁言";
+  if (status === "limited") return "限制发布";
+  if (status === "banned") return "已封禁";
+  return status || "未知";
+}
+
+function accountStatusTone(status) {
+  if (status === "active") return "good";
+  if (status === "banned") return "bad";
+  if (status === "limited" || status === "muted") return "warn";
+  return "";
+}
+
 const RECOMMENDED_TAGS = [
   "推理",
   "策略",
@@ -1190,6 +1205,37 @@ function renderAuthReviewList(users) {
   `).join("") || "<p class='meta'>暂无待审核实名认证申请</p>";
 }
 
+function renderAccountStatusList(users) {
+  const panel = $("#accountStatusList");
+  if (!panel) return;
+  const rows = users
+    .filter((user) => user.id !== state.user?.id)
+    .sort((a, b) => a.role.localeCompare(b.role) || a.student_no.localeCompare(b.student_no, "zh-CN"));
+
+  panel.innerHTML = rows.map((user) => {
+    const isBanned = user.status === "banned";
+    return `
+      <div class="card account-status-card">
+        <div>
+          <strong>${escapeHtml(user.nickname || user.name)}</strong>
+          <p class="meta">
+            <span>${escapeHtml(user.student_no || user.id)}</span>
+            <span>${roleText(user.role)}</span>
+            <span class="badge ${accountStatusTone(user.status)}">${accountStatusText(user.status)}</span>
+            <span class="badge ${authStatusTone(user.auth_status)}">${authStatusText(user.auth_status)}</span>
+          </p>
+          ${user.status_reason ? `<p class="hint">处理原因：${escapeHtml(user.status_reason)}</p>` : ""}
+        </div>
+        <div class="actions">
+          ${isBanned
+            ? `<button onclick="changeUserBanStatus('${user.id}', 'active')">解除封禁</button>`
+            : `<button class="danger" onclick="changeUserBanStatus('${user.id}', 'banned')">封禁账号</button>`}
+        </div>
+      </div>
+    `;
+  }).join("") || "<p class='meta'>暂无可管理账号</p>";
+}
+
 async function reviewUserAuth(userId, action) {
   const reason = action === "approve"
     ? "信息校验通过"
@@ -1203,15 +1249,32 @@ async function reviewUserAuth(userId, action) {
   await loadAdmin();
 }
 
+async function changeUserBanStatus(userId, status) {
+  const isBan = status === "banned";
+  const reason = window.prompt(
+    isBan ? "请输入封禁原因" : "请输入解除封禁原因",
+    isBan ? "违反平台规则" : "管理员复核通过",
+  );
+  if (reason === null || !reason.trim()) return;
+  await api(`/api/users/${userId}/status`, {
+    method: "PATCH",
+    body: { status, reason },
+  });
+  toast(isBan ? "账号已封禁。" : "账号已解除封禁。");
+  await loadAdmin();
+}
+
 async function loadAdmin() {
   try {
     const [stats, logs, users] = await Promise.all([api("/api/admin/stats"), api("/api/admin/logs"), api("/api/users")]);
     $("#statsPanel").innerHTML = renderStats(stats);
     renderAuthReviewList(users);
+    renderAccountStatusList(users);
     $("#logList").innerHTML = logs.map((log) => `<div class="card"><strong>${log.action}</strong><p>${log.object_type}:${log.object_id} · ${log.result}</p><p class="meta">${fmtTime(log.created_at)}</p></div>`).join("") || "<p class='meta'>暂无日志</p>";
   } catch (error) {
     $("#statsPanel").innerHTML = `<p class="meta">加载失败：${error.message}</p>`;
     $("#authReviewList").innerHTML = "";
+    $("#accountStatusList").innerHTML = "";
     $("#logList").innerHTML = "";
   }
 }
@@ -1242,6 +1305,7 @@ window.deleteVenueAction = deleteVenueAction;
 window.reviewReservation = reviewReservation;
 window.handleComplaint = handleComplaint;
 window.reviewUserAuth = reviewUserAuth;
+window.changeUserBanStatus = changeUserBanStatus;
 window.showAuthFeatureUnavailable = showAuthFeatureUnavailable;
 window.openProfileDialog = openProfileDialog;
 window.addRecommendedTag = addRecommendedTag;
