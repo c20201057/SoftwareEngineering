@@ -36,6 +36,7 @@
 | POST | `/api/auth/register` | 公开 | 注册未认证学生账号 |
 | POST | `/api/auth/logout` | 登录 | 撤销当前会话 token |
 | GET/PUT | `/api/users/me` | 登录 | 当前用户资料 |
+| POST | `/api/users/me/password` | 登录 | 输入旧密码修改新密码 |
 | POST | `/api/users/me/auth` | 学生 | 提交或重新提交实名认证申请 |
 | GET | `/api/users/me/credit` | 登录 | 个人信用记录 |
 | GET/POST/PATCH | `/api/games` | 公开/管理员 | 游戏库查询与维护 |

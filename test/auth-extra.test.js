@@ -8,6 +8,7 @@ const {
   request,
   sessionPayload,
 } = require("../test-utils/helpers");
+const { verifyPassword } = require("../src/security/password");
 
 test("auth and user APIs validate credentials, privacy, and permissions", async (t) => {
   const ctx = await createTestServer();
@@ -28,6 +29,14 @@ test("auth and user APIs validate credentials, privacy, and permissions", async 
 
     await t.test("logout requires a valid token", async () => {
       const result = await request(ctx.baseUrl, "POST", "/api/auth/logout", {});
+      assert.equal(result.status, 401);
+    });
+
+    await t.test("password change requires login", async () => {
+      const result = await request(ctx.baseUrl, "POST", "/api/users/me/password", {
+        old_password: DEFAULT_PASSWORD,
+        new_password: "newabc123",
+      });
       assert.equal(result.status, 401);
     });
 
@@ -124,6 +133,63 @@ test("auth and user APIs validate credentials, privacy, and permissions", async 
       const me = await request(ctx.baseUrl, "GET", "/api/users/me", undefined, result.payload.data.token);
       assert.equal(me.status, 200);
       assert.equal(me.payload.data.nickname, "FreshUser01");
+    });
+
+    await t.test("logged-in user can change password after entering old password", async () => {
+      const registered = await request(ctx.baseUrl, "POST", "/api/auth/register", {
+        nickname: "ChangePass01",
+        password: DEFAULT_PASSWORD,
+      });
+      assert.equal(registered.status, 201);
+      const token = registered.payload.data.token;
+      const userId = registered.payload.data.user.id;
+
+      const wrongOld = await request(ctx.baseUrl, "POST", "/api/users/me/password", {
+        old_password: "wrong123",
+        new_password: "newabc123",
+      }, token);
+      assert.equal(wrongOld.status, 401);
+
+      const weakNew = await request(ctx.baseUrl, "POST", "/api/users/me/password", {
+        old_password: DEFAULT_PASSWORD,
+        new_password: "123456",
+      }, token);
+      assert.equal(weakNew.status, 400);
+
+      const samePassword = await request(ctx.baseUrl, "POST", "/api/users/me/password", {
+        old_password: DEFAULT_PASSWORD,
+        new_password: DEFAULT_PASSWORD,
+      }, token);
+      assert.equal(samePassword.status, 400);
+
+      const before = ctx.app.store.get("users", userId).password_hash;
+      const changed = await request(ctx.baseUrl, "POST", "/api/users/me/password", {
+        old_password: DEFAULT_PASSWORD,
+        new_password: "newabc123",
+      }, token);
+      assert.equal(changed.status, 200);
+      assert.equal(changed.payload.data.changed, true);
+
+      const stored = ctx.app.store.get("users", userId);
+      assert.ok(stored.password_hash.startsWith("scrypt$"));
+      assert.notEqual(stored.password_hash, before);
+      assert.equal(verifyPassword("newabc123", stored.password_hash), true);
+
+      const oldLogin = await request(ctx.baseUrl, "POST", "/api/auth/login", {
+        nickname: "ChangePass01",
+        password: DEFAULT_PASSWORD,
+      });
+      assert.equal(oldLogin.status, 401);
+
+      const newLogin = await request(ctx.baseUrl, "POST", "/api/auth/login", {
+        nickname: "ChangePass01",
+        password: "newabc123",
+      });
+      assert.equal(newLogin.status, 200);
+
+      const currentSession = await request(ctx.baseUrl, "GET", "/api/users/me", undefined, token);
+      assert.equal(currentSession.status, 200);
+      assert.equal(currentSession.payload.data.nickname, "ChangePass01");
     });
 
     await t.test("newly registered student cannot publish before verification", async () => {

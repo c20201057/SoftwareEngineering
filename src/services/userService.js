@@ -168,6 +168,24 @@ class UserService {
     return this.publicUser(updated, updated);
   }
 
+  changePassword(user, payload) {
+    this.requireLogin(user);
+    const oldPassword = String(payload.old_password || "");
+    const newPassword = String(payload.new_password || "");
+    this.validatePassword(oldPassword);
+    this.validatePassword(newPassword);
+    const current = this.store.get("users", user.id);
+    if (!current || !verifyPassword(oldPassword, current.password_hash)) {
+      throw unauthorized("旧密码不正确");
+    }
+    if (oldPassword === newPassword) throw badRequest("新密码不能与旧密码相同");
+    this.store.update("users", user.id, {
+      password_hash: hashPassword(newPassword),
+      updated_at: nowIso(),
+    });
+    return { changed: true };
+  }
+
   uploadAvatar(user, payload) {
     this.requireLogin(user);
     if (!this.profilePhotoDir) throw badRequest("头像存储目录未配置");

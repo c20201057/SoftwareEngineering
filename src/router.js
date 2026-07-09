@@ -91,6 +91,11 @@ async function handleApi(app, req, res, url) {
     return;
   }
 
+  if (req.method === "POST" && route === "/users/me/password") {
+    ok(res, services.userService.changePassword(user, body));
+    return;
+  }
+
   if (req.method === "GET" && route === "/users/me/credit") {
     ok(res, services.sessionService.creditForUser(user));
     return;

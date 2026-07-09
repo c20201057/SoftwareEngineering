@@ -487,7 +487,17 @@ function renderAuthPanel() {
         <button type="button" onclick="openProfileDialog()">编辑个人资料</button>
       </div>
     </div>
+    <div class="card">
+      <h3>修改密码</h3>
+      <form id="passwordChangeForm" class="form-grid">
+        <label>旧密码<input name="old_password" type="password" autocomplete="current-password" required /></label>
+        <label>新密码<input name="new_password" type="password" autocomplete="new-password" required /></label>
+        <label>确认新密码<input name="confirm_password" type="password" autocomplete="new-password" required /></label>
+        <button class="wide" type="submit">修改密码</button>
+      </form>
+    </div>
   `;
+  $("#passwordChangeForm")?.addEventListener("submit", (event) => changePassword(event).catch((error) => toast(error.message)));
 }
 
 async function loadAuthView() {
@@ -626,6 +636,23 @@ async function saveProfileEdit(event) {
   toast("个人资料已更新。");
 }
 
+async function changePassword(event) {
+  event.preventDefault();
+  const target = event.currentTarget;
+  const form = new FormData(target);
+  const payload = Object.fromEntries(form.entries());
+  if (payload.new_password !== payload.confirm_password) throw new Error("两次输入的新密码不一致");
+  await api("/api/users/me/password", {
+    method: "POST",
+    body: {
+      old_password: payload.old_password,
+      new_password: payload.new_password,
+    },
+  });
+  target.reset();
+  toast("密码已修改。");
+}
+
 async function loadGames() {
   state.games = await api("/api/games");
   renderGameSelect();
@@ -713,7 +740,7 @@ function renderSessionCard(session) {
       <p class="meta">${fmtTime(session.start_time)} · ${locationText} · 发起人：${session.host_nickname}</p>
       <div class="actions">
         <button class="${isExpanded ? "secondary" : ""}" onclick="showSession('${session.id}')">${isExpanded ? "收起" : "详情"}</button>
-        ${canApply ? `<button class="secondary" onclick="applySession('${session.id}')">申请/加入</button>` : ""}
+        ${canApply ? `<button class="secondary" onclick="applySession('${session.id}')">申请加入</button>` : ""}
       </div>
       ${isExpanded && state.expandedSessionDetail ? renderSessionDetail(state.expandedSessionDetail) : ""}
     </article>
@@ -756,7 +783,7 @@ function renderSessionDetail(detail) {
     && detail.members.some((member) => member.user_id !== state.user.id);
 
   const actionButtons = [];
-  if (canApply) actionButtons.push(`<button class="secondary" onclick="applySession('${detail.id}')">申请/加入</button>`);
+  if (canApply) actionButtons.push(`<button class="secondary" onclick="applySession('${detail.id}')">申请加入</button>`);
   if (canCreateComplaint) actionButtons.push(`<button class="secondary" onclick="createComplaint('${detail.id}')">提交投诉</button>`);
 
   const userHint = hasPendingApplication
