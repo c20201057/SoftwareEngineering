@@ -7,6 +7,7 @@ const state = {
   venues: [],
   notifications: [],
   currentSessionMembers: [],
+  expandedSessionId: "",
 };
 
 const REVIEW_SCORE_LABELS = {
@@ -173,6 +174,7 @@ function clearLocalSession() {
   state.user = null;
   state.notifications = [];
   state.currentSessionMembers = [];
+  state.expandedSessionId = "";
   localStorage.removeItem("cg_token");
 }
 
@@ -643,12 +645,22 @@ async function loadSessions() {
   const tag = encodeURIComponent($("#tagFilter").value);
   const keyword = encodeURIComponent($("#keywordFilter").value);
   state.sessions = await api(`/api/sessions?type=${type}&tag=${tag}&keyword=${keyword}`);
-  $("#sessionList").innerHTML = state.sessions.map(renderSessionCard).join("") || "<p class='meta'>暂无组局</p>";
+  if (state.expandedSessionId && !state.sessions.some((session) => session.id === state.expandedSessionId)) {
+    collapseSessionDetail({ renderList: false });
+  }
+  renderSessionList();
+}
+
+function renderSessionList() {
+  const list = $("#sessionList");
+  if (!list) return;
+  list.innerHTML = state.sessions.map(renderSessionCard).join("") || "<p class='meta'>暂无组局</p>";
 }
 
 function renderSessionCard(session) {
   const canApply = canApplyToSession(session);
   const locationText = formatSessionLocation(session);
+  const isExpanded = state.expandedSessionId === session.id;
   return `
     <article class="card">
       <h3>${session.title}</h3>
@@ -663,16 +675,30 @@ function renderSessionCard(session) {
       ${(session.recommendation_reasons || []).length ? `<p class="hint">推荐理由：${session.recommendation_reasons.map(escapeHtml).join("、")}</p>` : ""}
       <p class="meta">${fmtTime(session.start_time)} · ${locationText} · 发起人：${session.host_nickname}</p>
       <div class="actions">
-        <button onclick="showSession('${session.id}')">详情</button>
+        <button class="${isExpanded ? "secondary" : ""}" onclick="showSession('${session.id}')">${isExpanded ? "收起" : "详情"}</button>
         ${canApply ? `<button class="secondary" onclick="applySession('${session.id}')">申请/加入</button>` : ""}
       </div>
     </article>
   `;
 }
 
-async function showSession(id) {
+function collapseSessionDetail(options = {}) {
+  state.expandedSessionId = "";
+  state.currentSessionMembers = [];
+  const detailPanel = $("#sessionDetail");
+  if (detailPanel) detailPanel.innerHTML = "";
+  if (options.renderList !== false) renderSessionList();
+}
+
+async function showSession(id, options = {}) {
+  if (!options.forceOpen && state.expandedSessionId === id) {
+    collapseSessionDetail();
+    return;
+  }
   const detail = await api(`/api/sessions/${id}`);
+  state.expandedSessionId = id;
   state.currentSessionMembers = detail.members || [];
+  renderSessionList();
   const locationText = formatSessionLocation(detail);
   const isMember = detail.members.some((member) => member.user_id === state.user?.id);
   const hasPendingApplication = detail.applications.some((item) => item.applicant_id === state.user?.id && item.status === "pending");
@@ -715,7 +741,7 @@ async function showSession(id) {
 async function refreshSessionViews(sessionId = null) {
   await Promise.all([loadSessions(), loadMine(), loadVenues()]);
   if (sessionId && $("#view-sessions")?.classList.contains("active")) {
-    await showSession(sessionId).catch(() => {});
+    await showSession(sessionId, { forceOpen: true }).catch(() => {});
   }
 }
 
@@ -959,7 +985,7 @@ function renderMineSessions(sessions, detailMap = {}) {
 
 function openSessionFromMine(id) {
   showView("sessions");
-  showSession(id).catch((error) => toast(error.message));
+  showSession(id, { forceOpen: true }).catch((error) => toast(error.message));
 }
 
 async function openEditSession(id) {
