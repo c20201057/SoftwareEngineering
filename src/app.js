@@ -12,9 +12,10 @@ const { StatsService } = require("./services/statsService");
 function createApp(options = {}) {
   const rootDir = options.rootDir || path.resolve(__dirname, "..");
   const dataDir = options.dataDir || path.join(rootDir, "data");
+  const profilePhotoDir = path.join(dataDir, "profile_photo");
   const store = new JsonStore(dataDir, { resetOnStart: options.resetOnStart });
 
-  const userService = new UserService(store);
+  const userService = new UserService(store, profilePhotoDir);
   const notificationService = new NotificationService(store);
   const logService = new LogService(store);
   const gameService = new GameService(store, userService, logService);
@@ -25,6 +26,7 @@ function createApp(options = {}) {
 
   return {
     rootDir,
+    profilePhotoDir,
     publicDir: options.publicDir || path.join(rootDir, "public"),
     store,
     services: {

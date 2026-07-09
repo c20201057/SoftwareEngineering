@@ -12,6 +12,7 @@ const MIME = {
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
   ".svg": "image/svg+xml; charset=utf-8",
+  ".webp": "image/webp",
   ".pdf": "application/pdf",
 };
 
@@ -24,7 +25,7 @@ function createHandler(app) {
         return;
       }
       if (url.pathname.startsWith("/profile_photo/")) {
-        serveStatic(path.join(app.rootDir, "data", "profile_photo"), req, res, {
+        serveStatic(app.profilePhotoDir || path.join(app.rootDir, "data", "profile_photo"), req, res, {
           ...url,
           pathname: url.pathname.replace(/^\/profile_photo\//, "/"),
         });
@@ -67,6 +68,11 @@ async function handleApi(app, req, res, url) {
 
   if (req.method === "POST" && route === "/users/me/auth") {
     ok(res, services.userService.submitAuth(user, body));
+    return;
+  }
+
+  if (req.method === "POST" && route === "/users/me/avatar") {
+    ok(res, services.userService.uploadAvatar(user, body));
     return;
   }
 

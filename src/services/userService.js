@@ -1,5 +1,7 @@
+const fs = require("node:fs");
+const path = require("node:path");
 const { badRequest, conflict, forbidden, notFound, unauthorized } = require("../errors");
-const { maskStudentNo, normalizeText, nowIso } = require("../utils");
+const { ensureDir, maskStudentNo, normalizeText, nowIso } = require("../utils");
 
 const AVATAR_OPTIONS = new Set([
   "default.png",
@@ -16,9 +18,20 @@ const AVATAR_OPTIONS = new Set([
   "10.png",
 ]);
 
+const AVATAR_UPLOAD_TYPES = new Map([
+  ["image/png", "png"],
+  ["image/jpeg", "jpg"],
+  ["image/jpg", "jpg"],
+  ["image/webp", "webp"],
+]);
+
+const MAX_AVATAR_BYTES = 512 * 1024;
+const UPLOADED_AVATAR_PATTERN = /^uploads\/[A-Za-z0-9_-]+-\d+\.(png|jpg|jpeg|webp)$/;
+
 class UserService {
-  constructor(store) {
+  constructor(store, profilePhotoDir = null) {
     this.store = store;
+    this.profilePhotoDir = profilePhotoDir;
   }
 
   publicUser(user, viewer = null) {
@@ -92,7 +105,7 @@ class UserService {
       : user.tags || [];
     const contact = normalizeText(payload.contact ?? user.contact);
     const avatar = normalizeText(payload.avatar ?? user.avatar ?? "default.png");
-    if (!AVATAR_OPTIONS.has(avatar)) throw badRequest("头像选项不存在");
+    if (!this.isAllowedAvatar(avatar)) throw badRequest("头像选项不存在");
     const updated = this.store.update("users", user.id, {
       nickname,
       tags,
@@ -101,6 +114,61 @@ class UserService {
       updated_at: nowIso(),
     });
     return this.publicUser(updated, updated);
+  }
+
+  uploadAvatar(user, payload) {
+    this.requireLogin(user);
+    if (!this.profilePhotoDir) throw badRequest("头像存储目录未配置");
+    const { mime, buffer } = this.parseAvatarImage(payload.image || payload.data_url);
+    const ext = AVATAR_UPLOAD_TYPES.get(mime);
+    const uploadDir = path.join(this.profilePhotoDir, "uploads");
+    ensureDir(uploadDir);
+    const fileName = `${user.id}-${Date.now()}.${ext}`;
+    const relativePath = `uploads/${fileName}`;
+    fs.writeFileSync(path.join(uploadDir, fileName), buffer);
+    const updated = this.store.update("users", user.id, {
+      avatar: relativePath,
+      updated_at: nowIso(),
+    });
+    return this.publicUser(updated, updated);
+  }
+
+  parseAvatarImage(value) {
+    const text = normalizeText(value);
+    const match = text.match(/^data:(image\/(?:png|jpe?g|webp));base64,([A-Za-z0-9+/=\s]+)$/i);
+    if (!match) throw badRequest("头像图片格式不正确");
+    const mime = match[1].toLowerCase() === "image/jpg" ? "image/jpeg" : match[1].toLowerCase();
+    if (!AVATAR_UPLOAD_TYPES.has(mime)) throw badRequest("仅支持 PNG、JPG、WEBP 头像");
+    const buffer = Buffer.from(match[2].replace(/\s/g, ""), "base64");
+    if (!buffer.length || buffer.length > MAX_AVATAR_BYTES) throw badRequest("头像图片不能超过 512KB");
+    if (!this.hasValidImageSignature(buffer, mime)) throw badRequest("头像图片内容与格式不匹配");
+    return { mime, buffer };
+  }
+
+  hasValidImageSignature(buffer, mime) {
+    if (mime === "image/png") {
+      return buffer.length > 8
+        && buffer[0] === 0x89
+        && buffer[1] === 0x50
+        && buffer[2] === 0x4e
+        && buffer[3] === 0x47;
+    }
+    if (mime === "image/jpeg") {
+      return buffer.length > 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+    }
+    if (mime === "image/webp") {
+      return buffer.length > 12
+        && buffer.toString("ascii", 0, 4) === "RIFF"
+        && buffer.toString("ascii", 8, 12) === "WEBP";
+    }
+    return false;
+  }
+
+  isAllowedAvatar(avatar) {
+    if (AVATAR_OPTIONS.has(avatar)) return true;
+    if (!UPLOADED_AVATAR_PATTERN.test(avatar)) return false;
+    if (!this.profilePhotoDir) return false;
+    return fs.existsSync(path.join(this.profilePhotoDir, avatar));
   }
 
   submitAuth(user, payload) {

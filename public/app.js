@@ -283,7 +283,44 @@ const RECOMMENDED_TAGS = [
 const AVATAR_OPTIONS = ["1.png", "2.png", "3.png", "4.png", "5.png", "6.png", "7.png", "8.png", "9.png", "10.png"];
 
 function avatarUrl(avatar) {
-  return `/profile_photo/${encodeURIComponent(avatar || "default.png")}`;
+  return `/profile_photo/${String(avatar || "default.png").split("/").map(encodeURIComponent).join("/")}`;
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("头像文件读取失败"));
+    reader.readAsDataURL(file);
+  });
+}
+
+function loadImageFromDataUrl(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("头像图片无法解析"));
+    image.src = dataUrl;
+  });
+}
+
+async function compressAvatarFile(file) {
+  const allowedTypes = new Set(["image/png", "image/jpeg", "image/webp"]);
+  if (!allowedTypes.has(file.type)) throw new Error("仅支持 PNG、JPG、WEBP 头像");
+  if (file.size > 5 * 1024 * 1024) throw new Error("原始图片不能超过 5MB");
+
+  const dataUrl = await readFileAsDataUrl(file);
+  const image = await loadImageFromDataUrl(dataUrl);
+  const size = 256;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  const side = Math.min(image.naturalWidth, image.naturalHeight);
+  const sx = Math.max(0, (image.naturalWidth - side) / 2);
+  const sy = Math.max(0, (image.naturalHeight - side) / 2);
+  ctx.drawImage(image, sx, sy, side, side, 0, 0, size, size);
+  return canvas.toDataURL("image/jpeg", 0.86);
 }
 
 function escapeHtml(value) {
@@ -509,8 +546,30 @@ function selectAvatar(avatar) {
   closeAvatarDialog();
 }
 
-function showUploadUnavailable() {
-  toast("从本地上传暂未实现");
+function openAvatarFilePicker() {
+  const input = $("#avatarFileInput");
+  if (!input) return;
+  input.value = "";
+  input.click();
+}
+
+async function handleAvatarFileSelected(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  const image = await compressAvatarFile(file);
+  const user = await api("/api/users/me/avatar", {
+    method: "POST",
+    body: { image },
+  });
+  state.user = user;
+  const form = $("#profileEditForm");
+  const preview = $("#profileEditAvatar");
+  if (form) form.avatar.value = user.avatar || "default.png";
+  if (preview) preview.src = avatarUrl(user.avatar);
+  renderProfile();
+  renderAuthPanel();
+  closeAvatarDialog();
+  toast("头像已上传。");
 }
 
 function renderProfileDialogAuthStatus() {
@@ -1483,7 +1542,8 @@ $("#profileDialog").addEventListener("click", (event) => {
 $("#changeAvatarBtn").addEventListener("click", openAvatarDialog);
 $("#closeAvatarDialog").addEventListener("click", closeAvatarDialog);
 $("#cancelAvatarDialog").addEventListener("click", closeAvatarDialog);
-$("#uploadAvatarBtn").addEventListener("click", showUploadUnavailable);
+$("#uploadAvatarBtn").addEventListener("click", openAvatarFilePicker);
+$("#avatarFileInput").addEventListener("change", (event) => handleAvatarFileSelected(event).catch((error) => toast(error.message)));
 $("#avatarDialog").addEventListener("click", (event) => {
   if (event.target.id === "avatarDialog") closeAvatarDialog();
 });

@@ -49,6 +49,8 @@ function createFutureWindow(daysFromNow = 5, startHour = 19, durationHours = 3) 
   };
 }
 
+const ONE_PIXEL_PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMB/axS5kAAAAAASUVORK5CYII=";
+
 test("health and public session list work", async () => {
   const ctx = await createTestServer();
   try {
@@ -59,6 +61,39 @@ test("health and public session list work", async () => {
     const sessions = await request(ctx.baseUrl, "GET", "/api/sessions");
     assert.equal(sessions.status, 200);
     assert.ok(sessions.payload.data.length >= 2);
+  } finally {
+    await ctx.close();
+  }
+});
+
+test("student can upload and keep a local avatar", async () => {
+  const ctx = await createTestServer();
+  try {
+    const studentToken = await login(ctx.baseUrl, "2314007");
+
+    const uploaded = await request(ctx.baseUrl, "POST", "/api/users/me/avatar", { image: ONE_PIXEL_PNG }, studentToken);
+    assert.equal(uploaded.status, 200);
+    assert.match(uploaded.payload.data.avatar, /^uploads\/11001-\d+\.png$/);
+
+    const avatarPath = uploaded.payload.data.avatar;
+    const imageResponse = await fetch(`${ctx.baseUrl}/profile_photo/${avatarPath}`);
+    assert.equal(imageResponse.status, 200);
+    assert.equal(imageResponse.headers.get("content-type"), "image/png");
+
+    const saved = await request(
+      ctx.baseUrl,
+      "PUT",
+      "/api/users/me",
+      {
+        nickname: "李佳璇",
+        contact: "lijx@example.edu",
+        tags: ["推理"],
+        avatar: avatarPath,
+      },
+      studentToken,
+    );
+    assert.equal(saved.status, 200);
+    assert.equal(saved.payload.data.avatar, avatarPath);
   } finally {
     await ctx.close();
   }
