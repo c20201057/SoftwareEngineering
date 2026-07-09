@@ -768,17 +768,28 @@ async function createComplaint(sessionId) {
 
 async function createSession(event) {
   event.preventDefault();
-  const form = new FormData(event.currentTarget);
-  const payload = Object.fromEntries(form.entries());
-  payload.max_members = Number(payload.max_members);
-  payload.min_credit_required = Number(payload.min_credit_required);
-  await api("/api/sessions", { method: "POST", body: payload });
-  event.currentTarget.reset();
-  setDefaultTimes();
-  renderVenueSelect("#venueSelect", "", "请选择场地");
-  toast("组局已发布。");
-  await refreshSessionViews();
-  showView("sessions");
+  const formElement = event.currentTarget;
+  const submitButton = formElement.querySelector("button[type='submit']");
+  if (submitButton) submitButton.disabled = true;
+  try {
+    const form = new FormData(formElement);
+    const payload = Object.fromEntries(form.entries());
+    payload.max_members = Number(payload.max_members);
+    payload.min_credit_required = Number(payload.min_credit_required);
+    const created = await api("/api/sessions", { method: "POST", body: payload });
+    formElement.reset();
+    setDefaultTimes();
+    renderVenueSelect("#venueSelect", "", "请选择场地");
+    showView("sessions");
+    try {
+      await refreshSessionViews(created?.id);
+      toast("组局已发布。");
+    } catch {
+      toast("组局已发布，但列表刷新失败，请手动刷新。");
+    }
+  } finally {
+    if (submitButton) submitButton.disabled = false;
+  }
 }
 
 function renderNotifications(notifications) {
