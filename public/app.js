@@ -256,6 +256,28 @@ function gameStatusTone(status) {
   return "";
 }
 
+function sessionStatusText(status) {
+  if (status === "recruiting") return "招募中";
+  if (status === "full") return "已满员";
+  if (status === "finished") return "已完成";
+  if (status === "failed") return "未组局成功";
+  if (status === "cancelled") return "已取消";
+  return status || "未知";
+}
+
+function sessionStatusTone(status) {
+  if (status === "recruiting") return "good";
+  if (status === "full") return "warn";
+  if (status === "finished") return "good";
+  if (status === "failed" || status === "cancelled") return "bad";
+  return "";
+}
+
+function hasSessionStarted(session) {
+  const start = new Date(session.start_time).getTime();
+  return Number.isFinite(start) && start <= Date.now();
+}
+
 const RECOMMENDED_TAGS = [
   "推理",
   "策略",
@@ -635,6 +657,7 @@ function canApplyToSession(session) {
   if (!isVerifiedStudent()) return false;
   if (state.user.id === session.host_id) return false;
   if (session.status !== "recruiting") return false;
+  if (hasSessionStarted(session)) return false;
   if (session.seats_left < 1) return false;
   if (Number(state.user.credit_score || 0) < Number(session.min_credit_required || 0)) return false;
   return true;
@@ -707,6 +730,7 @@ async function showSession(id, options = {}) {
     && !isMember
     && !hasPendingApplication
     && detail.status === "recruiting"
+    && !hasSessionStarted(detail)
     && Number(state.user.credit_score || 0) >= Number(detail.min_credit_required || 0)
     && Number(detail.current_members || 0) < Number(detail.max_members || 0);
   const canCreateComplaint = isVerifiedStudent()
@@ -726,6 +750,7 @@ async function showSession(id, options = {}) {
     <p>${detail.description || "暂无说明"}</p>
     <div class="meta">
       <span class="badge">${detail.game?.name || ""}</span>
+      <span class="badge ${sessionStatusTone(detail.status)}">${sessionStatusText(detail.status)}</span>
       <span class="badge">${fmtTime(detail.start_time)}</span>
       <span class="badge">地点：${locationText}</span>
       <span class="badge">场地状态：${detail.venue_status}</span>
@@ -768,7 +793,17 @@ async function reviewApplication(id, action) {
 
 async function finishSession(id) {
   await api(`/api/sessions/${id}/finish`, { method: "POST", body: {} });
-  toast("组局已标记结束。");
+  toast("组局已标记完成，可进行互评。");
+  await refreshSessionViews(id);
+}
+
+async function failSession(id) {
+  const reason = window.prompt("请输入未组局成功原因", "人数不足或临时变更") || "";
+  await api(`/api/sessions/${id}/fail`, {
+    method: "POST",
+    body: { reason },
+  });
+  toast("组局已标记为未成功。");
   await refreshSessionViews(id);
 }
 
@@ -919,10 +954,12 @@ function renderMineSessions(sessions, detailMap = {}) {
   if (!list) return;
   list.innerHTML = sessions.map((session) => {
     const isHostSession = session.host_id === state.user?.id;
-    const canEdit = isHostSession && ["recruiting", "full"].includes(session.status);
-    const canCancel = isHostSession && !["cancelled", "finished"].includes(session.status);
-    const canFinishMine = isHostSession && ["recruiting", "full"].includes(session.status);
-    const canLeaveMine = !isHostSession && isVerifiedStudent() && ["recruiting", "full"].includes(session.status);
+    const started = hasSessionStarted(session);
+    const isOpenSession = ["recruiting", "full"].includes(session.status);
+    const canEdit = isHostSession && isOpenSession && !started;
+    const canCancel = isHostSession && isOpenSession && !started;
+    const canConfirmResult = isHostSession && isOpenSession && started;
+    const canLeaveMine = !isHostSession && isVerifiedStudent() && isOpenSession && !started;
     const pendingApplications = isHostSession
       ? (detailMap[session.id]?.applications || []).filter((item) => item.status === "pending")
       : [];
@@ -932,7 +969,8 @@ function renderMineSessions(sessions, detailMap = {}) {
       `<button class="secondary" onclick="openSessionFromMine('${session.id}')">查看详情</button>`,
     ];
     if (canEdit) actionButtons.push(`<button onclick="openEditSession('${session.id}')">编辑</button>`);
-    if (canFinishMine) actionButtons.push(`<button onclick="finishSession('${session.id}')">标记结束</button>`);
+    if (canConfirmResult) actionButtons.push(`<button onclick="finishSession('${session.id}')">标记完成</button>`);
+    if (canConfirmResult) actionButtons.push(`<button class="danger" onclick="failSession('${session.id}')">未组局成功</button>`);
     if (canCancel) actionButtons.push(`<button class="danger" onclick="cancelHostedSession('${session.id}')">取消组局</button>`);
     if (canLeaveMine) actionButtons.push(`<button class="danger" onclick="leaveSession('${session.id}')">退出组局</button>`);
 
@@ -963,7 +1001,7 @@ function renderMineSessions(sessions, detailMap = {}) {
             <strong>${session.title}</strong>
             <p class="meta">
               <span class="badge">${session.game_name}</span>
-              <span class="badge ${session.status === "recruiting" ? "good" : session.status === "full" ? "warn" : "bad"}">${session.status}</span>
+              <span class="badge ${sessionStatusTone(session.status)}">${sessionStatusText(session.status)}</span>
               <span class="badge">${isHostSession ? "我是发起人" : "我是成员"}</span>
             </p>
           </div>
@@ -1605,6 +1643,7 @@ window.showSession = showSession;
 window.applySession = applySession;
 window.reviewApplication = reviewApplication;
 window.finishSession = finishSession;
+window.failSession = failSession;
 window.createComplaint = createComplaint;
 window.openSessionFromMine = openSessionFromMine;
 window.openEditSession = openEditSession;

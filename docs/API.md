@@ -44,7 +44,8 @@
 | POST | `/api/sessions/:id/applications` | 认证学生 | 报名或提交申请 |
 | PATCH | `/api/applications/:id` | 发起人 | 审核报名 |
 | POST | `/api/sessions/:id/leave` | 成员 | 退出组局 |
-| POST | `/api/sessions/:id/finish` | 发起人 | 标记结束 |
+| POST | `/api/sessions/:id/finish` | 发起人 | 活动开始后标记完成并开启互评 |
+| POST | `/api/sessions/:id/fail` | 发起人 | 活动开始后标记未组局成功 |
 | POST | `/api/sessions/:id/reviews` | 成员 | 活动互评 |
 | GET/POST/PATCH | `/api/venue-reservations` | 发起人/场地管理员 | 场地申请和审核 |
 | GET/POST/PATCH | `/api/venues` | 公开/场地管理员 | 场地查询和维护 |

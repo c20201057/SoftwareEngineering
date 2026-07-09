@@ -3,6 +3,8 @@ const { DEFAULT_INITIAL_PASSWORD, hashPassword } = require("../security/password
 
 function createSeedData() {
   const now = nowIso();
+  const firstSessionStart = futureDate(5, 19);
+  const secondSessionStart = futureDate(6, 14);
   return {
     users: [
       {
@@ -183,8 +185,8 @@ function createSeedData() {
         game_id: "g1",
         title: "周五晚阿瓦隆缺三人",
         description: "新老玩家都可，要求准时到场，现场讲规则。",
-        start_time: "2026-06-07T19:00:00.000+08:00",
-        end_time: "2026-06-07T22:00:00.000+08:00",
+        start_time: firstSessionStart.toISOString(),
+        end_time: addHours(firstSessionStart, 3).toISOString(),
         location: "学生活动中心三楼",
         max_members: 6,
         current_members: 1,
@@ -200,8 +202,8 @@ function createSeedData() {
         game_id: "g2",
         title: "卡坦岛新手教学局",
         description: "已有一套实体桌游，欢迎没玩过的同学。",
-        start_time: "2026-06-08T14:00:00.000+08:00",
-        end_time: "2026-06-08T17:00:00.000+08:00",
+        start_time: secondSessionStart.toISOString(),
+        end_time: addHours(secondSessionStart, 3).toISOString(),
         location: "二主楼公共讨论区",
         max_members: 4,
         current_members: 1,
@@ -261,6 +263,16 @@ function createSeedData() {
     admin_logs: [],
     auth_sessions: [],
   };
+}
+
+function futureDate(daysFromNow, hour) {
+  const date = new Date(Date.now() + daysFromNow * 24 * 60 * 60 * 1000);
+  date.setHours(hour, 0, 0, 0);
+  return date;
+}
+
+function addHours(date, hours) {
+  return new Date(date.getTime() + hours * 60 * 60 * 1000);
 }
 
 module.exports = { createSeedData };

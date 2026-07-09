@@ -60,6 +60,16 @@ function createFutureWindow(daysFromNow = 5, startHour = 19, durationHours = 3) 
   };
 }
 
+function markSessionStarted(app, sessionId) {
+  const start = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const end = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+  app.store.update("game_sessions", sessionId, { start_time: start, end_time: end });
+  const reservation = app.store.all("venue_reservations").find((item) => item.session_id === sessionId);
+  if (reservation) {
+    app.store.update("venue_reservations", reservation.id, { start_time: start, end_time: end });
+  }
+}
+
 const ONE_PIXEL_PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMB/axS5kAAAAAASUVORK5CYII=";
 
 test("health and public session list work", async () => {
@@ -261,6 +271,70 @@ test("verified student can publish with selected venue and host can approve appl
     const detail = await request(ctx.baseUrl, "GET", `/api/sessions/${sessionId}`, undefined, hostToken);
     assert.equal(detail.payload.data.current_members, 2);
     assert.equal(detail.payload.data.members.some((member) => member.user_id === "11002"), true);
+  } finally {
+    await ctx.close();
+  }
+});
+
+test("started sessions leave hall until host confirms finished or failed", async () => {
+  const ctx = await createTestServer();
+  try {
+    const hostToken = await login(ctx.baseUrl, "2314007");
+    const applicantToken = await login(ctx.baseUrl, "2313983");
+    const time = createFutureWindow(8, 19, 3);
+
+    const create = await request(
+      ctx.baseUrl,
+      "POST",
+      "/api/sessions",
+      {
+        game_id: "g1",
+        title: "开始后确认结果测试局",
+        start_time: time.start,
+        end_time: time.end,
+        venue_id: "v1",
+        max_members: 6,
+        join_mode: "manual",
+      },
+      hostToken,
+    );
+    assert.equal(create.status, 201);
+    const sessionId = create.payload.data.id;
+
+    const earlyFinish = await request(ctx.baseUrl, "POST", `/api/sessions/${sessionId}/finish`, {}, hostToken);
+    assert.equal(earlyFinish.status, 409);
+
+    markSessionStarted(ctx.app, sessionId);
+
+    const hall = await request(ctx.baseUrl, "GET", "/api/sessions");
+    assert.equal(hall.status, 200);
+    assert.equal(hall.payload.data.some((session) => session.id === sessionId), false);
+
+    const lateApply = await request(ctx.baseUrl, "POST", `/api/sessions/${sessionId}/applications`, {}, applicantToken);
+    assert.equal(lateApply.status, 409);
+
+    const failed = await request(
+      ctx.baseUrl,
+      "POST",
+      `/api/sessions/${sessionId}/fail`,
+      { reason: "人数不足" },
+      hostToken,
+    );
+    assert.equal(failed.status, 200);
+    assert.equal(failed.payload.data.status, "failed");
+    assert.equal(failed.payload.data.venue_status, "cancelled");
+
+    const reservation = ctx.app.store.all("venue_reservations").find((item) => item.session_id === sessionId);
+    assert.equal(reservation.status, "cancelled");
+
+    const review = await request(
+      ctx.baseUrl,
+      "POST",
+      `/api/sessions/${sessionId}/reviews`,
+      { target_user_id: "11002", score: 5, content: "不会被接受" },
+      hostToken,
+    );
+    assert.equal(review.status, 409);
   } finally {
     await ctx.close();
   }
@@ -716,6 +790,8 @@ test("finished session members can review each other and credit changes", async 
 
     const join = await request(ctx.baseUrl, "POST", `/api/sessions/${sessionId}/applications`, {}, studentToken);
     assert.equal(join.status, 201);
+
+    markSessionStarted(ctx.app, sessionId);
 
     const finish = await request(ctx.baseUrl, "POST", `/api/sessions/${sessionId}/finish`, {}, hostToken);
     assert.equal(finish.status, 200);

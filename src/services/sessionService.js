@@ -12,7 +12,7 @@ class SessionService {
   }
 
   list(query = {}) {
-    const status = normalizeText(query.status || "recruiting");
+    const status = query.status === undefined ? "recruiting" : normalizeText(query.status);
     const type = normalizeText(query.type);
     const tag = normalizeText(query.tag).toLowerCase();
     const keyword = normalizeText(query.keyword).toLowerCase();
@@ -20,6 +20,7 @@ class SessionService {
     const popularity = this.gamePopularity(sessions);
     return sessions
       .filter((session) => !status || session.status === status)
+      .filter((session) => status !== "recruiting" || !this.hasStarted(session))
       .filter((session) => {
         const game = this.store.get("game_libs", session.game_id);
         const location = this.resolveSessionLocation(session);
@@ -160,6 +161,7 @@ class SessionService {
     if (!session) throw notFound("组局不存在");
     this.requireHost(user, session);
     if (!["recruiting", "full"].includes(session.status)) throw conflict("只有招募中或满员的组局可以编辑");
+    if (this.hasStarted(session)) throw conflict("活动开始后不能编辑，请确认完成或未组局成功");
 
     const currentReservation = this.resolveSessionReservation(session.id);
     const currentVenueId = currentReservation?.venue_id || "";
@@ -326,6 +328,7 @@ class SessionService {
     this.userService.requireVerified(user);
     const session = this.store.get("game_sessions", sessionId);
     if (!session) throw notFound("组局不存在");
+    if (this.hasStarted(session)) throw conflict("活动开始后不能退出组局");
     if (session.host_id === user.id) throw forbidden("发起人不能直接退出自己创建的组局，请取消组局");
 
     const member = this.store
@@ -360,7 +363,8 @@ class SessionService {
     const session = this.store.get("game_sessions", sessionId);
     if (!session) throw notFound("组局不存在");
     this.requireHost(user, session);
-    if (["cancelled", "finished"].includes(session.status)) throw conflict("该组局状态不允许取消");
+    if (["cancelled", "finished", "failed"].includes(session.status)) throw conflict("该组局状态不允许取消");
+    if (this.hasStarted(session)) throw conflict("活动开始后不能取消，请确认完成或未组局成功");
 
     const reason = normalizeText(payload.reason);
     const updated = this.store.update("game_sessions", session.id, {
@@ -388,6 +392,8 @@ class SessionService {
     const session = this.store.get("game_sessions", sessionId);
     if (!session) throw notFound("组局不存在");
     this.requireHost(user, session);
+    if (!["recruiting", "full"].includes(session.status)) throw conflict("该组局状态不允许标记完成");
+    if (!this.hasStarted(session)) throw conflict("活动开始后才能标记完成");
     const updated = this.store.update("game_sessions", session.id, {
       status: "finished",
       updated_at: nowIso(),
@@ -399,6 +405,36 @@ class SessionService {
       related_type: "game_session",
       related_id: session.id,
     });
+    return updated;
+  }
+
+  fail(user, sessionId, payload = {}) {
+    const session = this.store.get("game_sessions", sessionId);
+    if (!session) throw notFound("组局不存在");
+    this.requireHost(user, session);
+    if (!["recruiting", "full"].includes(session.status)) throw conflict("该组局状态不允许标记未成功");
+    if (!this.hasStarted(session)) throw conflict("活动开始后才能确认未组局成功");
+
+    const reason = normalizeText(payload.reason);
+    const updated = this.store.update("game_sessions", session.id, {
+      status: "failed",
+      fail_reason: reason,
+      venue_status: "cancelled",
+      updated_at: nowIso(),
+    });
+
+    if (this.venueService) {
+      this.venueService.cancelReservationForSession(session.id, reason || "未组局成功", user.id);
+    }
+
+    this.notifyMembers(session.id, {
+      type: "session_failed",
+      title: "组局未成功",
+      content: `《${session.title}》已标记为未组局成功，原因：${reason || "未填写"}`,
+      related_type: "game_session",
+      related_id: session.id,
+    });
+    this.logService.record(user, "fail_session", "game_session", session.id);
     return updated;
   }
 
@@ -488,7 +524,7 @@ class SessionService {
   gamePopularity(sessions) {
     const counts = new Map();
     for (const session of sessions) {
-      if (session.status === "cancelled") continue;
+      if (["cancelled", "failed"].includes(session.status)) continue;
       counts.set(session.game_id, (counts.get(session.game_id) || 0) + 1);
     }
     return counts;
@@ -540,6 +576,7 @@ class SessionService {
     if (!user) throw forbidden("用户不存在");
     if (user.id === session.host_id) throw conflict("发起人已经在成员名单中");
     if (session.status !== "recruiting") throw conflict("该组局当前不可报名");
+    if (this.hasStarted(session)) throw conflict("活动已开始，不能继续报名");
     if (user.credit_score < session.min_credit_required) throw forbidden("信用分不足，无法加入该组局");
     if (session.current_members >= session.max_members) throw conflict("该组局名额已满");
 
@@ -614,6 +651,11 @@ class SessionService {
     if (!venue && reservation) venue = this.store.get("venues", reservation.venue_id);
     if (venue && this.venueService) return this.venueService.describeVenue(venue);
     return session.location;
+  }
+
+  hasStarted(session) {
+    const start = new Date(session.start_time).getTime();
+    return Number.isFinite(start) && start <= Date.now();
   }
 
   decorateReservation(reservation) {

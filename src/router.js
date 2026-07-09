@@ -187,6 +187,11 @@ async function handleApi(app, req, res, url) {
     return;
   }
 
+  if (req.method === "POST" && pathParts[1] === "sessions" && pathParts[3] === "fail") {
+    ok(res, services.sessionService.fail(user, pathParts[2], body));
+    return;
+  }
+
   if (req.method === "POST" && pathParts[1] === "sessions" && pathParts[3] === "reviews") {
     ok(res, services.sessionService.createReview(user, pathParts[2], body), 201);
     return;
