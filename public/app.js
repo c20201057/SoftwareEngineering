@@ -8,6 +8,14 @@ const state = {
   currentSessionMembers: [],
 };
 
+const REVIEW_SCORE_LABELS = {
+  5: "5 分 · 表现很好",
+  4: "4 分 · 体验较好",
+  3: "3 分 · 正常参与",
+  2: "2 分 · 体验较差",
+  1: "1 分 · 严重影响活动",
+};
+
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 
@@ -679,6 +687,83 @@ function renderNotifications(notifications) {
   `).join("") || "<p class='meta'>暂无通知</p>";
 }
 
+function reviewScoreText(score) {
+  return REVIEW_SCORE_LABELS[Number(score)] || `${score} 分`;
+}
+
+function renderReviewHistory(reviews = []) {
+  if (!reviews.length) return "<p class='hint'>暂无互评记录。</p>";
+  return `
+    <div class="review-history">
+      ${reviews.map((review) => `
+        <div class="review-item">
+          <strong>${escapeHtml(review.reviewer?.nickname || review.reviewer_id)}</strong>
+          <span>评价</span>
+          <strong>${escapeHtml(review.target_user?.nickname || review.target_user_id)}</strong>
+          <span class="badge ${Number(review.score) >= 4 ? "good" : Number(review.score) <= 2 ? "bad" : "warn"}">${reviewScoreText(review.score)}</span>
+          ${review.content ? `<p>${escapeHtml(review.content)}</p>` : ""}
+          <p class="meta">${fmtTime(review.created_at)}</p>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderSessionReviewPanel(session, detail) {
+  if (session.status !== "finished") return "";
+  if (!isVerifiedStudent()) return "";
+  if (!detail) return "<div class='subsection'><h4>活动互评</h4><p class='hint'>互评信息加载中。</p></div>";
+
+  const members = detail.members || [];
+  const reviews = detail.reviews || [];
+  const isMember = members.some((member) => member.user_id === state.user?.id);
+  if (!isMember) return "";
+
+  const reviewedTargetIds = new Set(
+    reviews
+      .filter((review) => review.reviewer_id === state.user?.id)
+      .map((review) => review.target_user_id),
+  );
+  const availableTargets = members.filter((member) => (
+    member.user_id !== state.user?.id && !reviewedTargetIds.has(member.user_id)
+  ));
+
+  const targetOptions = availableTargets.map((member) => {
+    const nickname = member.user?.nickname || member.user?.name || member.user_id;
+    const role = member.member_role === "host" ? "发起人" : "成员";
+    const credit = member.user?.credit_score ?? "-";
+    return `<option value="${member.user_id}">${escapeHtml(nickname)} · ${role} · 信用 ${credit}</option>`;
+  }).join("");
+
+  const form = availableTargets.length ? `
+    <form class="review-form" onsubmit="submitSessionReview(event, '${session.id}')">
+      <label>
+        <span>评价对象</span>
+        <select name="target_user_id" required>${targetOptions}</select>
+      </label>
+      <label>
+        <span>评分</span>
+        <select name="score" required>
+          ${[5, 4, 3, 2, 1].map((score) => `<option value="${score}">${REVIEW_SCORE_LABELS[score]}</option>`).join("")}
+        </select>
+      </label>
+      <label class="wide">
+        <span>评价内容</span>
+        <textarea name="content" maxlength="200" placeholder="可填写对准时、沟通、活动体验等方面的评价"></textarea>
+      </label>
+      <button type="submit">提交评价</button>
+    </form>
+  ` : "<p class='hint'>本组局已完成可提交的互评。</p>";
+
+  return `
+    <div class="subsection review-panel">
+      <h4>活动互评</h4>
+      ${form}
+      ${renderReviewHistory(reviews)}
+    </div>
+  `;
+}
+
 function renderMineSessions(sessions, detailMap = {}) {
   const list = $("#mineList");
   if (!list) return;
@@ -691,6 +776,7 @@ function renderMineSessions(sessions, detailMap = {}) {
     const pendingApplications = isHostSession
       ? (detailMap[session.id]?.applications || []).filter((item) => item.status === "pending")
       : [];
+    const reviewPanel = renderSessionReviewPanel(session, detailMap[session.id]);
 
     const actionButtons = [
       `<button class="secondary" onclick="openSessionFromMine('${session.id}')">查看详情</button>`,
@@ -741,6 +827,7 @@ function renderMineSessions(sessions, detailMap = {}) {
         </p>
         <div class="actions">${actionButtons.join("")}</div>
         ${reviewSection}
+        ${reviewPanel}
       </div>
     `;
   }).join("") || "<p class='meta'>暂无记录</p>";
@@ -810,6 +897,20 @@ async function cancelHostedSession(id) {
   await refreshSessionViews(id);
 }
 
+async function submitSessionReview(event, sessionId) {
+  event.preventDefault();
+  const form = new FormData(event.currentTarget);
+  const payload = Object.fromEntries(form.entries());
+  payload.score = Number(payload.score);
+  payload.content = String(payload.content || "").trim();
+  await api(`/api/sessions/${sessionId}/reviews`, {
+    method: "POST",
+    body: payload,
+  });
+  toast("评价已提交，信用记录已更新。");
+  await refreshSessionViews(sessionId);
+}
+
 async function loadMine() {
   if (!state.token) {
     state.notifications = [];
@@ -822,12 +923,15 @@ async function loadMine() {
 
   try {
     const [mine, notifications] = await Promise.all([api("/api/sessions/mine"), api("/api/notifications")]);
-    const hostDetails = await Promise.all(
-      mine
-        .filter((session) => session.host_id === state.user?.id)
+    const detailSessions = mine.filter((session) => (
+      session.host_id === state.user?.id || session.status === "finished"
+    ));
+    const details = await Promise.all(
+      detailSessions
+        .filter((session, index, rows) => rows.findIndex((item) => item.id === session.id) === index)
         .map((session) => api(`/api/sessions/${session.id}`)),
     );
-    const detailMap = Object.fromEntries(hostDetails.map((detail) => [detail.id, detail]));
+    const detailMap = Object.fromEntries(details.map((detail) => [detail.id, detail]));
     state.notifications = notifications;
     renderNavigation();
     renderMineSessions(mine, detailMap);
@@ -1131,6 +1235,7 @@ window.openSessionFromMine = openSessionFromMine;
 window.openEditSession = openEditSession;
 window.leaveSession = leaveSession;
 window.cancelHostedSession = cancelHostedSession;
+window.submitSessionReview = submitSessionReview;
 window.markNotificationRead = markNotificationRead;
 window.startVenueEdit = startVenueEdit;
 window.deleteVenueAction = deleteVenueAction;

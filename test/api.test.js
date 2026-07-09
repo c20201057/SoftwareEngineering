@@ -429,3 +429,81 @@ test("admin handles complaint and credit score changes", async () => {
     await ctx.close();
   }
 });
+
+test("finished session members can review each other and credit changes", async () => {
+  const ctx = await createTestServer();
+  try {
+    const hostToken = await login(ctx.baseUrl, "2314007");
+    const studentToken = await login(ctx.baseUrl, "2313983");
+    const time = createFutureWindow(10, 18, 2);
+
+    const create = await request(
+      ctx.baseUrl,
+      "POST",
+      "/api/sessions",
+      {
+        game_id: "g1",
+        title: "互评测试局",
+        start_time: time.start,
+        end_time: time.end,
+        venue_id: "v2",
+        max_members: 6,
+        join_mode: "direct",
+      },
+      hostToken,
+    );
+    assert.equal(create.status, 201);
+    const sessionId = create.payload.data.id;
+
+    const join = await request(ctx.baseUrl, "POST", `/api/sessions/${sessionId}/applications`, {}, studentToken);
+    assert.equal(join.status, 201);
+
+    const finish = await request(ctx.baseUrl, "POST", `/api/sessions/${sessionId}/finish`, {}, hostToken);
+    assert.equal(finish.status, 200);
+    assert.equal(finish.payload.data.status, "finished");
+
+    const review = await request(
+      ctx.baseUrl,
+      "POST",
+      `/api/sessions/${sessionId}/reviews`,
+      { target_user_id: "11001", score: 5, content: "组织清楚，体验很好" },
+      studentToken,
+    );
+    assert.equal(review.status, 201);
+    assert.equal(review.payload.data.score, 5);
+
+    const duplicate = await request(
+      ctx.baseUrl,
+      "POST",
+      `/api/sessions/${sessionId}/reviews`,
+      { target_user_id: "11001", score: 4, content: "重复评价" },
+      studentToken,
+    );
+    assert.equal(duplicate.status, 409);
+
+    const detail = await request(ctx.baseUrl, "GET", `/api/sessions/${sessionId}`, undefined, studentToken);
+    assert.equal(detail.status, 200);
+    assert.equal(detail.payload.data.reviews.length, 1);
+    assert.equal(detail.payload.data.reviews[0].reviewer_id, "11002");
+    assert.equal(detail.payload.data.reviews[0].target_user_id, "11001");
+
+    const hostCredit = await request(ctx.baseUrl, "GET", "/api/users/me/credit", undefined, hostToken);
+    assert.equal(hostCredit.payload.data.user.credit_score, 101);
+    assert.equal(hostCredit.payload.data.records[0].change_value, 1);
+
+    const lowReview = await request(
+      ctx.baseUrl,
+      "POST",
+      `/api/sessions/${sessionId}/reviews`,
+      { target_user_id: "11002", score: 2, content: "到场沟通不充分" },
+      hostToken,
+    );
+    assert.equal(lowReview.status, 201);
+
+    const studentCredit = await request(ctx.baseUrl, "GET", "/api/users/me/credit", undefined, studentToken);
+    assert.equal(studentCredit.payload.data.user.credit_score, 94);
+    assert.equal(studentCredit.payload.data.records[0].change_value, -2);
+  } finally {
+    await ctx.close();
+  }
+});

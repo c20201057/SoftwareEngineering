@@ -61,6 +61,15 @@ class SessionService {
         ...item,
         applicant: this.userService.publicUser(this.store.get("users", item.applicant_id), viewer),
       }));
+    const reviews = this.store
+      .all("reviews")
+      .filter((item) => item.session_id === id)
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      .map((item) => ({
+        ...item,
+        reviewer: this.userService.publicUser(this.store.get("users", item.reviewer_id), viewer),
+        target_user: this.userService.publicUser(this.store.get("users", item.target_user_id), viewer),
+      }));
     const reservation = this.resolveSessionReservation(id);
     const venue = reservation ? this.store.get("venues", reservation.venue_id) : null;
     return {
@@ -70,6 +79,7 @@ class SessionService {
       host: this.userService.publicUser(host, viewer),
       members,
       applications,
+      reviews,
       venue,
       venue_id: reservation?.venue_id || null,
       venue_reservation: reservation ? this.decorateReservation(reservation) : null,
