@@ -61,9 +61,16 @@ class SessionService {
         ...item,
         applicant: this.userService.publicUser(this.store.get("users", item.applicant_id), viewer),
       }));
+    const memberIds = new Set(members.map((member) => member.user_id));
+    const canViewAllReviews = viewer?.role === "admin";
+    const canViewOwnReviews = viewer && memberIds.has(viewer.id);
     const reviews = this.store
       .all("reviews")
       .filter((item) => item.session_id === id)
+      .filter((item) => (
+        canViewAllReviews
+        || (canViewOwnReviews && (item.reviewer_id === viewer.id || item.target_user_id === viewer.id))
+      ))
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
       .map((item) => ({
         ...item,

@@ -435,6 +435,7 @@ test("finished session members can review each other and credit changes", async 
   try {
     const hostToken = await login(ctx.baseUrl, "2314007");
     const studentToken = await login(ctx.baseUrl, "2313983");
+    const adminToken = await login(ctx.baseUrl, "2311987");
     const time = createFutureWindow(10, 18, 2);
 
     const create = await request(
@@ -503,6 +504,18 @@ test("finished session members can review each other and credit changes", async 
     const studentCredit = await request(ctx.baseUrl, "GET", "/api/users/me/credit", undefined, studentToken);
     assert.equal(studentCredit.payload.data.user.credit_score, 94);
     assert.equal(studentCredit.payload.data.records[0].change_value, -2);
+
+    const publicDetail = await request(ctx.baseUrl, "GET", `/api/sessions/${sessionId}`);
+    assert.equal(publicDetail.status, 200);
+    assert.equal(publicDetail.payload.data.reviews.length, 0);
+
+    const studentDetail = await request(ctx.baseUrl, "GET", `/api/sessions/${sessionId}`, undefined, studentToken);
+    assert.equal(studentDetail.status, 200);
+    assert.equal(studentDetail.payload.data.reviews.length, 2);
+
+    const adminDetail = await request(ctx.baseUrl, "GET", `/api/sessions/${sessionId}`, undefined, adminToken);
+    assert.equal(adminDetail.status, 200);
+    assert.equal(adminDetail.payload.data.reviews.length, 2);
   } finally {
     await ctx.close();
   }
