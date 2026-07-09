@@ -156,13 +156,30 @@ test("JsonStore persists seeded collections and mutations", async (t) => {
   }));
 
   await t.test("seeds default users and games", () => withStore((store) => {
-    assert.ok(store.all("users").length >= 6);
-    assert.ok(store.all("game_libs").length >= 3);
+    assert.ok(store.all("users").length >= 12);
+    assert.ok(store.all("game_libs").length >= 8);
+  }));
+
+  await t.test("seeds evaluation accounts and sessions with diverse states", () => withStore((store) => {
+    const users = store.all("users");
+    const games = store.all("game_libs");
+    const sessions = store.all("game_sessions");
+    assert.equal(users.some((user) => user.nickname === "ChenMo" && user.auth_status === "verified"), true);
+    assert.equal(users.some((user) => user.nickname === "BannedDemo" && user.status === "banned"), true);
+    assert.equal(users.some((user) => user.nickname === "LimitedDemo" && user.status === "limited"), true);
+    assert.equal(games.some((game) => game.type === "合作桌游" && game.status === "active"), true);
+    assert.equal(games.some((game) => game.id === "g8" && game.status === "inactive"), true);
+    assert.equal(sessions.some((session) => session.status === "full"), true);
+    assert.equal(sessions.some((session) => session.status === "finished"), true);
+    assert.equal(sessions.some((session) => session.status === "failed"), true);
+    assert.equal(sessions.some((session) => session.status === "cancelled"), true);
+    assert.equal(sessions.some((session) => session.join_mode === "manual"), true);
+    assert.equal(sessions.some((session) => session.join_mode === "direct"), true);
   }));
 
   await t.test("insert assigns the next game id", () => withStore((store) => {
     const game = store.insert("game_libs", { name: "Test Game" });
-    assert.equal(game.id, "g4");
+    assert.equal(game.id, "g9");
   }));
 
   await t.test("insert respects an explicit id", () => withStore((store) => {
@@ -203,7 +220,7 @@ test("JsonStore persists seeded collections and mutations", async (t) => {
   }));
 
   await t.test("next student account id stays in the student range", () => withStore((store) => {
-    assert.equal(store.nextId("users", store.all("users"), { role: "student" }), "11005");
+    assert.equal(store.nextId("users", store.all("users"), { role: "student" }), "11011");
   }));
 
   await t.test("next admin account id stays in the admin range", () => withStore((store) => {
